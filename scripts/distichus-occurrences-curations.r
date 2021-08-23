@@ -36,7 +36,7 @@ library(ggmap)
 working_dir <- getwd()
 setwd(working_dir)
 
-output_dir <- "~/Dropbox/Distichus_Project/distichus-spatial-project/data/GBIF" # Add where you want occurrences to go
+output_dir <- "~/Dropbox/Distichus_Project/distichus-spatial-project/data/GBIF/" # Add where you want occurrences to go
 dir.create(output_dir)
 
 #-------------------------------------------------------------------------------
@@ -129,8 +129,8 @@ points(occ_thin[,2:3], col = "red", pch =19)
 
 #-----------------Splitting training and testing data---------------------------
 # model calibration folder
-dir.create("Model_calibration")
-dir.create("Model_calibration/All_Records_30km_thin")
+dir.create("sdm/Model_calibration")
+dir.create("sdm/Model_calibration/All_Records_30km_thin")
 
 # split distance based thinned data for 5 exercises of model calibration
 n <- 1:5
@@ -138,7 +138,7 @@ splits <- lapply(n, function(x) {
   set.seed(x)
   occsp_50 <- split_data(occ_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/All_Records_30km_thin/Adist", x))
+                         name = paste0("sdm/Model_calibration/All_Records_30km_thin/Adist", x))
 })
 
 #-------------------------------------------------------------------------------
@@ -234,12 +234,12 @@ occ_dom <- occ_dom[occ_dom$longitude<=(-69.62),]
 
 occ_dom <- dplyr::anti_join(occ_dom, occ_ig, by=c("latitude","longitude")) # eliminate overlapping ignigularis samples
 
-write.csv(occ_fav, "A_d_favillarum.csv", row.names=FALSE)
-write.csv(occ_dom, "A_d_dominicensis_clean.csv", row.names=FALSE)
-write.csv(occ_haiti, "A_distichus_Tiburon.csv", row.names=FALSE)
-write.csv(occ_prop, "A_d_properus.csv", row.names=FALSE)
-write.csv(occ_rav, "A_d_ravitergum.csv", row.names=FALSE)
-write.csv(occ_ig, "A_d_ignigularis.csv", row.names=FALSE)
+write.csv(occ_fav, paste0(output_dir,"A_d_favillarum.csv"), row.names=FALSE)
+write.csv(occ_dom, paste0(output_dir,"A_d_dominicensis_clean.csv"), row.names=FALSE)
+write.csv(occ_haiti, paste0(output_dir,"A_distichus_Tiburon.csv"), row.names=FALSE)
+write.csv(occ_prop, paste0(output_dir,"A_d_properus.csv"), row.names=FALSE)
+write.csv(occ_rav, paste0(output_dir,"A_d_ravitergum.csv"), row.names=FALSE)
+write.csv(occ_ig, paste0(output_dir,"A_d_ignigularis.csv"), row.names=FALSE)
 
 #-------------------------------------------------------------------------------
 
@@ -292,12 +292,12 @@ points(occ_haiti_thin[,2:3], col = "blue", pch =19)
 
 #-----------------Splitting training and testing data---------------------------
 # model calibration folder
-dir.create("Model_calibration/fav_records_thin")
-dir.create("Model_calibration/rav_records_thin")
-dir.create("Model_calibration/ig_records_thin")
-dir.create("Model_calibration/dom_records_thin")
-dir.create("Model_calibration/prop_records_thin")
-dir.create("Model_calibration/haiti_records_thin")
+dir.create("sdm/Model_calibration/fav_records_thin")
+dir.create("sdm/Model_calibration/rav_records_thin")
+dir.create("sdm/Model_calibration/ig_records_thin")
+dir.create("sdm/Model_calibration/dom_records_thin")
+dir.create("sdm/Model_calibration/prop_records_thin")
+dir.create("sdm/Model_calibration/haiti_records_thin")
 
 # split distance based thinned data for 5 exercises of model calibration
 n <- 1:5
@@ -305,7 +305,7 @@ fav_splits <- lapply(n, function(x) {
   set.seed(x)
   occfav_3 <- split_data(occ_fav_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/fav_records_thin/fav", x))
+                         name = paste0("sdm/Model_calibration/fav_records_thin/fav", x))
 })
 
 n <- 1:5
@@ -313,7 +313,7 @@ rav_splits <- lapply(n, function(x) {
   set.seed(x)
   occrav_10 <- split_data(occ_rav_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/rav_records_thin/rav", x))
+                         name = paste0("sdm/Model_calibration/rav_records_thin/rav", x))
 })
 
 n <- 1:5
@@ -321,7 +321,7 @@ ig_splits <- lapply(n, function(x) {
   set.seed(x)
   occig_10 <- split_data(occ_ig_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/ig_records_thin/ig", x))
+                         name = paste0("sdm/Model_calibration/ig_records_thin/ig", x))
 })
 
 n <- 1:5
@@ -329,7 +329,7 @@ prop_splits <- lapply(n, function(x) {
   set.seed(x)
   occprop_10 <- split_data(occ_prop_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/prop_records_thin/prop", x))
+                         name = paste0("sdm/Model_calibration/prop_records_thin/prop", x))
 })
 
 n <- 1:5
@@ -337,7 +337,7 @@ dom_splits <- lapply(n, function(x) {
   set.seed(x)
   occdom_15 <- split_data(occ_dom_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/dom_records_thin/dom", x))
+                         name = paste0("sdm/Model_calibration/dom_records_thin/dom", x))
 })
 
 n <- 1:5
@@ -345,7 +345,7 @@ haiti_splits <- lapply(n, function(x) {
   set.seed(x)
   occhaiti_10 <- split_data(occ_haiti_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("Model_calibration/haiti_records_thin/haiti", x))
+                         name = paste0("sdm/Model_calibration/haiti_records_thin/haiti", x))
 })
 
 #-------------------------------------------------------------------------------
