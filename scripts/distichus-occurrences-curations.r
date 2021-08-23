@@ -36,7 +36,8 @@ library(ggmap)
 working_dir <- getwd()
 setwd(working_dir)
 
-#Output_dir <- "~/Dropbox/Distichus_Project/distichus_spatial_morphological_variation/GBIF" # Add where you want occurrences to go
+output_dir <- "~/Dropbox/Distichus_Project/distichus-spatial-project/data/GBIF" # Add where you want occurrences to go
+dir.create(output_dir)
 
 #-------------------------------------------------------------------------------
 
@@ -49,7 +50,7 @@ head(gbif_occs)
 
 sp_search <- occ_search(taxonKey = ad$gbif$Anolis_distichus$taxonKey[1])
 cit <- gbif_citation(sp_search)
-sink('gbif_ref.txt')
+sink('data/GBIF/gbif_ref.txt')
 sapply(cit, print)
 sink()
 
@@ -71,12 +72,12 @@ ggplot() +
     coord_fixed(xlim=c(-75,-67.5), ylim=c(17,20), ratio=1.3) + theme_nothing()
 
 # Write csv containing occurrence data for Anolis distichus 
-write.csv(occs, "occurrences_distichus_GBIF.csv", row.names = FALSE) # Maybe split script here. There's a lot of code after this and there's no need to repeat or alter the steps before
+write.csv(occs, "data/GBIF/occurrences_distichus_GBIF.csv", row.names = FALSE) # Maybe split script here. There's a lot of code after this and there's no need to repeat or alter the steps before
 
 #---------------------------------------------------------------------------------
 
 #--------------------- Data cleaning ---------------------------------------------
-occs <- read.csv("occurrences_distichus_GBIF.csv", header = TRUE)
+occs <- read.csv("data/GBIF/occurrences_distichus_GBIF.csv", header = TRUE)
 colnames(occs)
 
 ## subset columns of interest
