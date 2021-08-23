@@ -40,16 +40,16 @@
 
 #--------------------------------------Preparing variables--------------------------------------------#
     # stack variables (excluding 8,9,18, and 19; see Escobar et al. (2014))
-    mc10 <- stack(list.files("10m_mean_00s", pattern = "bio.*if$", full.names = T))
+    mc10 <- stack(list.files("data/10m_mean_00s", pattern = "bio.*if$", full.names = T))
     names(mc10) <- gsub("X10m_mean_00s_", "", names(mc10))
     mc10 <- mc10[[c(1, 12:17, 2:9)]]
 
-        ## At 2.5 arc-minutes, this is a lot of data to deal with and I am not interested in projecting
-        ## the suitability of habitats outside of Hispaniola so I am going to crop both the raster & shapefile loaded below
+        ## I am not interested in projecting the suitability of habitats outside of Hispaniola 
+        ## so I am going to crop both the raster & shapefile loaded below
         limits <- extent(c(-76,-67, 17, 21))
         mc10_subset <- crop(mc10, limits)
 
-    # Shapefile featuring country boundaries from: https://hub.arcgis.com/datasets/252471276c9941729543be8789e06e12_0/data
+    # Shapefile featuring country boundaries downloaded from: https://hub.arcgis.com/datasets/252471276c9941729543be8789e06e12_0/data
     world <- readOGR(dsn = ".", "World_Countries__Generalized_")
     world$id <- "1"
     hisp <- crop(world, limits)
