@@ -7,7 +7,7 @@
 # Authors:
 # Tanner Myers, Pietro de Mello, and Rich Glor
 
-# Code obtained and modified from https://github.com/townpeterson/vespa/tree/master/Rcode
+# Code modified from https://github.com/townpeterson/vespa/tree/master/Rcode
 
 # This script downloads raw MERRAclim data from Dryad and processes the bioclimatic variables
 # for use in niche modeling with kuenm 
@@ -22,16 +22,16 @@
 #----------------------------Downloading & unzipping bioclimatic variables----------------------------#
         ## https://datadryad.org/stash/dataset/doi:10.5061/dryad.s2v81 is the MERRAclim data link
     ## download url for MerraClim
-    data_url <- "https://datadryad.org/stash/downloads/file_stream/97913" # 2000s means @ 2.5 arc-minutes
+    data_url <- https://datadryad.org/stash/downloads/file_stream/96972" # 2000s means @ 2.5 arc-minutes
     
     ## download data
-    download.file(data_url, destfile = "2_5m_mean_00s.zip", method = "auto", 
+    download.file(data_url, destfile = "10m_mean_00s.zip", method = "auto", 
               quiet = FALSE, mode = "wb", cacheOK = TRUE)
 
     ## unzip variables
-    var_dir <- "2_5m_mean_00s"
+    var_dir <- "10m_mean_00s"
     dir.create(var_dir)
-    unzip(zipfile = "2_5m_mean_00s.zip", exdir=var_dir)
+    unzip(zipfile = "10m_mean_00s.zip", exdir=var_dir)
 #-----------------------------------------------------------------------------------------------------#
 
 #--------------------------------------Preparing variables--------------------------------------------#
@@ -60,8 +60,8 @@
     plot(mc2_5_subset[[1]])
 
     # Saving variables to a new directory
-    dir.create("merra_new")
+    dir.create("data/merra_new")
 
     lapply(names(mc2_5_subset), function(x) {
-        writeRaster(mc2_5_subset[[x]], paste0("merra_new/", x, ".asc"), overwrite = TRUE)
+        writeRaster(mc2_5_subset[[x]], paste0("data/merra_new/", x, ".asc"), overwrite = TRUE)
     })
