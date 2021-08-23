@@ -256,21 +256,21 @@ points(occ_ig_thin[,2:3], col = "orange", pch =19)
 occ_rav_thin <- thin_data(occ_rav, "longitude", "latitude", thin_distance = 10,
                     save =TRUE, name = "A_d_ravitergum_10km")
 
-maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
+#maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_rav_thin[,2:3], col = "yellow", pch =19)
 
 ## spatially thin A. d. properus occurrences by 10 km
 occ_prop_thin <- thin_data(occ_prop, "longitude", "latitude", thin_distance = 10,
                     save =TRUE, name = "A_d_properus_10km")
 
-maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
+#maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_prop_thin[,2:3], col = "gray", pch =19)
 
 ## spatially thin A. d. favillarum occurrences by 10 km
 occ_fav_thin <- thin_data(occ_fav, "longitude", "latitude", thin_distance = 3,
                     save =TRUE, name = "A_d_favillarum_3km")
 
-maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
+#maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_fav_thin[,2:3], col = "purple", pch =19)
 
 
@@ -278,14 +278,14 @@ points(occ_fav_thin[,2:3], col = "purple", pch =19)
 occ_dom_thin <- thin_data(occ_dom, "longitude", "latitude", thin_distance = 15,
                     save =TRUE, name = "A_d_dominicensis_30km")
 
-maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
+#maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_dom_thin[,2:3], col = "maroon", pch =19)
 
 ## spatially thin Haitian A. distichus subspecies occurrences by 10 km
 occ_haiti_thin <- thin_data(occ_haiti, "longitude", "latitude", thin_distance = 10,
                     save =TRUE, name = "A_distichus_Tiburon_10km")
 
-maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
+#maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_haiti_thin[,2:3], col = "blue", pch =19)
 
 #-------------------------------------------------------------------------------
