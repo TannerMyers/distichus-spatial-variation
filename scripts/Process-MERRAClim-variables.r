@@ -65,7 +65,7 @@
     plot(mc2_5_subset[[1]])
 
     # Saving variables to a new directory
-    dir.create("data/merra_new_2_5")
+    dir.create("data/merra_new")
 
     lapply(names(mc2_5_subset), function(x) {
         writeRaster(mc2_5_subset[[x]], paste0("data/merra_new/", x, ".asc"), overwrite = TRUE)
