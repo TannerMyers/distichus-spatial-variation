@@ -31,6 +31,7 @@ library(dplyr)
 library(purrr)
 library(ggplot2)
 library(ggmap)
+library(httpgd)
 
 # Directories
 working_dir <- getwd()
@@ -90,6 +91,8 @@ occ <- occ[occ$longitude != 0 & occ$latitude != 0, ]
 ## excluding duplicates
 occ <- occ[!duplicated(paste(occ$longitude, occ$latitude)), ]
 
+hgd()
+hgd_browse()
 maps::map()
 points(occ[, 2:3], col = "red", pch = 19)
 axis(side = 2)
