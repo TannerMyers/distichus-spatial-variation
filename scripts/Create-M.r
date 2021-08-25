@@ -15,7 +15,8 @@ working_dir <- getwd()
 setwd(working_dir)
 
 # create directory to output files
-output_dir <- "sdm/"
+output_dir <- "sdm/calibration-areas"
+dir.create(output_dir)
 
 ## considering earth's distortion. 
 WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
@@ -51,13 +52,14 @@ create_M <- function(occ, taxon) {
 
     ## plot 
     lims <- extent(buff_area)
-    map(xlim = lims[1:2] + c(-1,1), ylim = lims[3:4] + c(-1,1))
+    maps::map(xlim = lims[1:2] + c(-1,1), ylim = lims[3:4] + c(-1,1))
    # points(buff_area, border = "purple", add = TRUE, lwd = 2)
    ## ^Resulted in following error:
    ## Error in as.double(y) : 
    ## cannot coerce type 'S4' to vector of type 'double'
 
 }
+
 #
 
 ## Load inputs for `create_M`
