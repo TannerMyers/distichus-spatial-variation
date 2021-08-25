@@ -8,7 +8,19 @@ library(rgdal)
 library(maps)
 library(tidyverse)
 
-# Define function create_M
+# Setting variables
+
+## directory
+working_dir <- getwd()
+setwd(working_dir)
+
+# create directory to output files
+output_dir <- "sdm/"
+
+## considering earth's distortion. 
+WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+# Define function `create_M`
     ## Takes two inputs: a dataframe with cleaned records for your taxon of choice and
     ## the taxon's name 
 create_M <- function(occ, taxon) {
@@ -40,25 +52,17 @@ create_M <- function(occ, taxon) {
     ## plot 
     lims <- extent(buff_area)
     map(xlim = lims[1:2] + c(-1,1), ylim = lims[3:4] + c(-1,1))
-    points(buff_area, border = "purple", add = TRUE, lwd = 2)
+   # points(buff_area, border = "purple", add = TRUE, lwd = 2)
+   ## ^Resulted in following error:
+   ## Error in as.double(y) : 
+   ## cannot coerce type 'S4' to vector of type 'double'
+
 }
-
-# Setting variables
-
-## directory
-working_dir <- getwd()
-setwd(working_dir)
-
-# create directory to output files
-output_dir <- "enm/"
-dir.create(output_dir)
-
-## considering earth's distortion. 
-WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+#
 
 ## Load inputs for `create_M`
-all_distichus <- read_csv("data/GBIF/A_distichus_clean.csv")
+all_distichus <- read_csv("sdm/thinned-datasets/A_distichus_30km.csv")
 distichus <- "A_distichus"
 
-# 
+## 
 create_M(all_distichus, distichus)
