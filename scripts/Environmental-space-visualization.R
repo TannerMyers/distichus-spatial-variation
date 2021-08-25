@@ -44,6 +44,7 @@ mc_bioclim <- stack(list.files(path="data/merra_new", pattern = ".asc", full.nam
 
 wc_bioclim <- stack(list.files(path="data/wc0.5", pattern = ".bil", full.names = T)) 
 
+chelsa_bioclim <- stack(list.files(path="data/chelsa_new/", pattern=".asc", full.names=TRUE))
 
 # Get values for all raster points to plot as background
     ## First, bio1
@@ -51,20 +52,24 @@ wc_bioclim <- stack(list.files(path="data/wc0.5", pattern = ".bil", full.names =
      mc_bio1_points <- rasterToPoints(mc_bio1)
      wc_bio1 <- wc_bioclim$bio1_23
      wc_bio1_points <- rasterToPoints(wc_bio1)
+     chelsa_bio1 <- chelsa_bioclim$CHELSA_bio10_01
+     chelsa_bio1_points <- rasterToPoints(chelsa_bio1)
     
     ## Now, bio12 
      mc_bio12 <-mc_bioclim$bio12
      mc_bio12_points <- rasterToPoints(mc_bio12)
      wc_bio12 <- wc_bioclim$bio12_23
      wc_bio12_points <- rasterToPoints(wc_bio12)
-
+     chelsa_bio12 <- chelsa_bioclim$CHELSA_bio10_12
+     chelsa_bio12_points <- rasterToPoints(chelsa_bio12)
 
 # Extract raster values for the localities in `df`
 mc_bc_values <- raster::extract(mc_bioclim,data.frame(df$Longitude, df$Latitude))
 wc_bc_values <- raster::extract(wc_bioclim,data.frame[df$Longitude, df$Latitude])
+chelsa_bc_values <- raster::extract(chelsa_bioclim, data.frame(df$Longitude, df$Latitude))
 
 # Combine into one dataframe
-df <- cbind(df, mc_bc_values, wc_bc_values)
+df <- cbind(df, mc_bc_values, wc_bc_values, chelsa_bc_values)
 
 leg.txt <- c(expression(italic("ignigularis")),
              expression(italic("ravitergum")),
@@ -74,6 +79,12 @@ leg.txt <- c(expression(italic("ignigularis")),
              expression(italic("aurifer")),
              expression(italic("suppar")),
              expression(italic("vinosus")))
+
+> pdf("CHELSA_environmental_biplot.pdf")
+> plot(chelsa_bio12_points[,3] ~ chelsa_bio1_points[,3], xlab="BIO1", ylab="BIO12", main="Environmental Space (CHELSA)")
+> points(df$CHELSA_bio10_12 ~ df$CHELSA_bio10_01, col=df$Color, pch=16, cex=1.25)
+> legend("topleft", leg.txt, col=unique(df$Color), pch=16, cex=1)
+> dev.off()
 
 pdf("MERRAclim-environmental-biplot.pdf")
 #hgd()
@@ -128,10 +139,11 @@ data2 <-rbind(ign, rav, fav, prop, dom, haiti)
 
 mc_bc_values2 <- raster::extract(mc_bioclim,data.frame(data2$longitude, data2$latitude))
 wc_bc_values2 <- raster::extract(wc_bioclim,data.frame[data2$longitude, data2$latitude])
+chelsa_bc_values2 <- raster::extract(chelsa_bioclim,data.frame(data2$longitude, data2$latitude))
 
-data2 <- cbind(data2, mc_bc_values2, wc_bc_values2)
+data2 <- cbind(data2, mc_bc_values2, wc_bc_values2, chelsa_bc_values2)
 
-pdf("MERRAclim-environmental-biplot.pdf")
+pdf("GBIF-MERRAclim-environmental-biplot.pdf")
 #hgd()
 #hgd_browse()
 plot(mc_bio12_points[,3] ~ mc_bio1_points[,3], 
@@ -143,7 +155,7 @@ legend("topleft", leg.txt, col=unique(data2$Color), pch =16,
        cex=1)
 dev.off()
   
-pdf("Worldclim-environmental-biplot.pdf")
+pdf("GBIF-Worldclim-environmental-biplot.pdf")
 plot(wc_bio12_points[,3] ~ wc_bio1_points[,3],
      xlab="Annual Mean Temperature", ylab="Annual Precipitation",
      main="Environmental Space (WorldClim)")
@@ -151,4 +163,14 @@ points(data2$bio12_23 ~ data2$bio1_23,
        col=df$Color, pch=16, cex=1.25)
 legend("topleft", leg.txt, col=unique(data2$Color), pch =16,
          cex=1)
+dev.off()
+
+pdf("GBIF-CHELSA-environmental-biplot.pdf")
+plot(chelsa_bio12_points[,3] ~ chelsa_bio1_points[,3],
+     xlab="Annual Mean Temperature", ylab="Annual Precipitation",
+     main="Environmental Space (WorldClim)")
+points(data2$CHELSA_bio10_12 ~ data2$CHELSA_bio10_01, 
+       col=data2$Color, pch=16, cex=1.25)     
+legend("topleft", leg.txt, col=unique(data2$Color), pch =16,
+         cex=1)     
 dev.off()
