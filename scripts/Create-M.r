@@ -6,23 +6,9 @@ library(raster)
 library(rgeos)
 library(rgdal)
 library(maps)
+library(tidyverse)
 
-# Setting variables
-
-## directory
-working_dir <- getwd()
-setwd(working_dir)
-
-# create directory to output files
-output_dir <- "enm/"
-dir.create(output_dir)
-
-## considering earth's distortion. 
-WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
-
-
-
-# define function to create M 
+# Define function create_M
     ## Takes two inputs: a dataframe with cleaned records for your taxon of choice and
     ## the taxon's name 
 create_M <- function(occ, taxon) {
@@ -57,3 +43,22 @@ create_M <- function(occ, taxon) {
     points(buff_area, border = "purple", add = TRUE, lwd = 2)
 }
 
+# Setting variables
+
+## directory
+working_dir <- getwd()
+setwd(working_dir)
+
+# create directory to output files
+output_dir <- "enm/"
+dir.create(output_dir)
+
+## considering earth's distortion. 
+WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+## Load inputs for `create_M`
+all_distichus <- read_csv("data/GBIF/A_distichus_clean.csv")
+distichus <- "A_distichus"
+
+# 
+create_M(all_distichus, distichus)
