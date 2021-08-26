@@ -78,7 +78,7 @@ prop <- "A_d_properus"
 haiti_occs <- read_csv("sdm/thinned-datasets/A_distichus_Tiburon_10km.csv")
 haiti <- "A_distichus_Tiburon"
 
-## Test it on Anolis distichus complete dataset
+## Run it on Anolis distichus complete dataset
 create_M(all_distichus_occs, distichus)
 create_M(dom_occs, dom)
 create_M(fav_occs, fav)
@@ -86,3 +86,17 @@ create_M(haiti_occs, haiti)
 create_M(ign_occs, ign)
 create_M(prop_occs, prop)
 create_M(rav_occs, rav)
+
+chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
+
+# Masking layers to M
+dirs <- list.files("sdm/calibration-areas/")
+for (dir in dirs){
+    M <- readOGR(dir, layer = "M")
+
+    varsm <- mask(crop(chelsa_clim, M), M)
+
+    lapply(names(varsm), function(x) {
+        writeRaster(varsm[[x]], paste0(dir,"/",x,".asc"), overwrite = TRUE)
+    })
+}
