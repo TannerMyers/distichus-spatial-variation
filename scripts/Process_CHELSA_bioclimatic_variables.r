@@ -1,3 +1,19 @@
+###############
+
+# Project: Do environmental and geographic variation explain
+#          morphological variation in the Hispaniolan bark anole,
+#          Anolis distichus?
+
+# Authors:
+# Tanner Myers, Pietro de Mello, and Rich Glor
+
+# Code modified from https://github.com/townpeterson/vespa/tree/master/Rcode
+
+# This script loads and processes bioclimatic variables from the CHELSA database,
+# which I downloaded previously using wget on the urls present in "data/envidatS3paths.txt"
+
+##############
+
 library(raster)
 library(rgdal)
 library(rgeos)

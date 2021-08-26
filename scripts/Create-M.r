@@ -1,4 +1,16 @@
+###############
 
+# Project: Do environmental and geographic variation explain
+#          morphological variation in the Hispaniolan bark anole,
+#          Anolis distichus?
+
+# Authors:
+# Tanner Myers, Pietro de Mello, and Rich Glor
+
+# Code modified from https://github.com/townpeterson/vespa/tree/master/Rcode
+
+# This script creates "M" for ecological suitability modeling and masks bioclimatic variables
+# from the calibration areas it creates.
 
 
 # load libraries 
@@ -8,11 +20,16 @@ library(rgdal)
 library(maps)
 library(tidyverse)
 
-# Setting variables
-
 ## directory
 working_dir <- getwd()
 setwd(working_dir)
+
+#---------------------------------------------------------------------
+
+#---------------- Preparing calibration areas ------------------------
+
+
+# Setting variables
 
 # create directory to output files
 output_dir <- "sdm/calibration-areas/"
@@ -87,9 +104,14 @@ create_M(ign_occs, ign)
 create_M(prop_occs, prop)
 create_M(rav_occs, rav)
 
+#-------------------------------------------------------------------------------
+
+
+#---------------------Masking variables to calibration area---------------------
+
+## load bioclimatic variables
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
 
-# Masking layers to M
 dirs <- list.files("sdm/calibration-areas/")
 for (dir in dirs){
     dir <- str_remove(dir, '[1]')
