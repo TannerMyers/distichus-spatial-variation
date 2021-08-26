@@ -15,7 +15,7 @@ working_dir <- getwd()
 setwd(working_dir)
 
 # create directory to output files
-output_dir <- "sdm/calibration-areas"
+output_dir <- "sdm/calibration-areas/"
 dir.create(output_dir)
 
 ## considering earth's distortion. 
@@ -63,8 +63,26 @@ create_M <- function(occ, taxon) {
 #
 
 ## Load inputs for `create_M`
-all_distichus <- read_csv("sdm/thinned-datasets/A_distichus_30km.csv")
+all_distichus_occs <- read_csv("sdm/thinned-datasets/A_distichus_30km.csv")
 distichus <- "A_distichus"
+dom_occs <- read_csv("sdm/thinned-datasets/A_d_dominicensis_30km.csv")
+dom <- "A_d_dominicensis"
+ign_occs <- read_csv("sdm/thinned-datasets/A_d_ignigularis_10km.csv")
+ign <- "A_d_ignigularis"
+rav_occs <- read_csv("sdm/thinned-datasets/A_d_ravitergum_10km.csv")
+rav <- "A_d_ravitergum"
+fav_occs <- read_csv("sdm/thinned-datasets/A_d_favillarum_3km.csv")
+fav <- "A_d_favillarum"
+prop_occs <- read_csv("sdm/thinned-datasets/A_d_properus_10km.csv")
+prop <- "A_d_properus"
+haiti_occs <- read_csv("sdm/thinned-datasets/A_distichus_Tiburon_10km.csv")
+haiti <- "A_distichus_Tiburon"
 
-## 
-create_M(all_distichus, distichus)
+## Test it on Anolis distichus complete dataset
+create_M(all_distichus_occs, distichus)
+create_M(dom_occs, dom)
+create_M(fav_occs, fav)
+create_M(haiti_occs, haiti)
+create_M(ign_occs, ign)
+create_M(prop_occs, prop)
+create_M(rav_occs, rav)
