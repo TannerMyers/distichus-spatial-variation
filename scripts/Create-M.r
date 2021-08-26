@@ -92,6 +92,7 @@ chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".a
 # Masking layers to M
 dirs <- list.files("sdm/calibration-areas/")
 for (dir in dirs){
+    dir <- str_remove(dir, '[1]')
     M <- readOGR(dir, layer = "M")
 
     varsm <- mask(crop(chelsa_clim, M), M)
