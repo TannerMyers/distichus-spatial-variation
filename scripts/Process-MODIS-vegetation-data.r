@@ -7,7 +7,9 @@
 # Authors:
 # Tanner Myers, Pietro de Mello, and Rich Glor
 
-# This script 
+# This script averages yearly data layers for the MODIS variables NDVI and
+# EVI for the months of March and May to create mean monthly EVI and NDVI
+# for the decade of interest.
 
 ###############
 
