@@ -1,6 +1,7 @@
 
 # directories 
 working_dir <- getwd()
+setwd(working_dir)
 
 # libraries
 library(RStoolbox)
@@ -34,3 +35,5 @@ env <- raster::stack(bc_list, vi_list)
 # 
 ## perform principal component analysis on rasters
 pca <- rasterPCA(env)
+    plot(pca$map)
+    summary(pca$model)
