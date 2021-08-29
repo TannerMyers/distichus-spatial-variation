@@ -5,6 +5,7 @@ setwd(working_dir)
 
 # libraries
 library(RStoolbox)
+library(tidyverse)
 
 
 bc_list <- raster::stack(list.files("data/chelsa_new/", pattern=".asc", full.names = TRUE))
@@ -34,6 +35,11 @@ env <- raster::stack(bc_list, vi_list)
 
 # 
 ## perform principal component analysis on rasters
-pca <- rasterPCA(env)
+pca <- rasterPCA(env, spca=TRUE)
+    ## Visualize PC rasters
     plot(pca$map)
-    summary(pca$model)
+
+## Check loadings & eigenvalues for top 5 loadings
+knitr::kable(round(pca$model$loadings[,1:5],5)) # loadings
+summary(pca$model) # eigenvalues
+
