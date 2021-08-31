@@ -111,13 +111,37 @@ create_M(rav_occs, rav)
 
 ## load bioclimatic variables
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
+modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
+## Raster stacks have different extents
+        extent(chelsa_clim)
+        # class      : Extent 
+        # xmin       : -76.00014 
+        # xmax       : -67.00014 
+        # ymin       : 16.99986 
+        # ymax       : 20.99986 
+        extent(modis_vi)
+        # class      : Extent 
+        # xmin       : -74.81667 
+        # xmax       : -68.16667 
+        # ymin       : 17.4 
+        # ymax       : 20.81667 
+    ## Since the extent of modis_vi fits within chelsa_clim's extent, let's
+    ## crop chelsa_clim to make it the same for both
+    chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
+    ## still not quite the same
+    chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
+
+## Now, load elevational data that has already been adjusted to the MODIS variable extent
+elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
+
+env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names=TRUE)
 
 dirs <- list.files("sdm/calibration-areas/")
 for (dir in dirs){
     dir <- str_remove(dir, '[1]')
-    M <- readOGR(dir, layer = "M")
+    M <- rgdal::readOGR(dir, layer = "M")
 
-    varsm <- mask(crop(chelsa_clim, M), M)
+    varsm <- mask(crop(env, M), M)
 
     lapply(names(varsm), function(x) {
         writeRaster(varsm[[x]], paste0(dir,"/",x,".asc"), overwrite = TRUE)
