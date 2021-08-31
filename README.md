@@ -14,3 +14,9 @@
 - **Raster-PCA.r** - performs principal component analysis on environmental variable rasters using RStoolbox function `rasterPCA`.
 
 Note: most of the scripts used for ecological distribution modeling were adapted from code written for Nuñez-Penichet et al. (2020), present in this [GitHub repository](https://github.com/townpeterson/vespa).
+
+## References
+
+MacGuigan, D. J., A. J. Geneva, and R. E. Glor. 2017. A genomic assessment of species boundaries and hybridization in a group of highly polymorphic anoles (*distichus* species complex). Ecol Evol 7:3657–3671.
+
+Nuñez-Penichet, C., L. Osorio-Olvera, V. H. Gonzalez, M. E. Cobos, L. Jiménez, D. A. DeRaad, A. Alkishe, R. G. Contreras-Díaz, A. Nava-Bolaños, K. Utsumi, U. Ashraf, A. Adeboje, A. T. Peterson, and J. Soberon. 2021. Geographic potential of the world’s largest hornet, *Vespa mandarinia* Smith (Hymenoptera: Vespidae), worldwide and particularly in North America. PeerJ 9:e10690.
