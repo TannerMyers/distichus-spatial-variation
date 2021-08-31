@@ -138,12 +138,14 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names=TRUE)
 
 dirs <- list.files("sdm/calibration-areas/")
 for (dir in dirs){
-    dir <- str_remove(dir, '[1]')
-    M <- rgdal::readOGR(dir, layer = "M")
+    ## provide whole path name to redefine "dir"
+    dir <- paste0("sdm/calibration-areas/",dir,"/")
+
+    M <- readOGR(dir, layer = "M")
 
     varsm <- mask(crop(env, M), M)
 
     lapply(names(varsm), function(x) {
-        writeRaster(varsm[[x]], paste0(dir,"/",x,".asc"), overwrite = TRUE)
+        writeRaster(varsm[[x]], paste0(dir,x,".asc"), overwrite = TRUE)
     })
 }
