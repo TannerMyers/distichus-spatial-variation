@@ -21,7 +21,6 @@ setwd(working_dir)
 library(raster)
 library(rgdal)
 library(rgeos)
-library(RStoolbox)
 library(tidyverse)
 
 # Load rasters for May vegetation indices
