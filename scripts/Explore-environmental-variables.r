@@ -21,10 +21,10 @@ records <- read_csv("sdm/thinned-datasets/A_distichus_30km.csv")
 # exploring the data in environmental space
 ## only temperature variables
 explore_espace(data = records, species ="scientificName", longitude = "longitude",
-                latitude = "latitude", raster_layers = variables[[]], save = TRUE, 
-                name = "Temperature_variables.pdf")
+                latitude = "latitude", raster_layers = variables[[c(1:9,20)]], save = TRUE, 
+                name = "temp_plots/Temperature_Elevation_variables.pdf")
 
 ## only precipitation variables
 explore_espace(data = records, species ="scientificName", longitude = "longitude",
-                latitude = "latitude", raster_layers = variables[[]], save = TRUE, 
-                name = "Precipitation_variables.pdf")
+                latitude = "latitude", raster_layers = variables[[10:19]], save = TRUE, 
+                name = "temp_plots/Precipitation_VI_variables.pdf")
