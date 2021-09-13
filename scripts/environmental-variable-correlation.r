@@ -67,5 +67,17 @@ usdm::vifcor(x=variables_values, th=0.85) # 0.85 is linear correlation
   ## with VIF higher than th remains
 usdm::vifstep(x=variables_values, th=10) # 10 is the threshold value of VIF 
 
+# Create a directory to contain non-correlated variables
 dir.create("sdm/non-correlated-variables")
-selected_variables <- variables[[c()]]
+
+selected<- c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05", 
+                                  "CHELSA_bio10_15", "CHELSA_bio10_16", "march_EVI_mean",
+                                  "may_NDVI_mean")
+
+selected_variables <- variables[[selected]]
+
+variable_names <- paste0("sdm/non-correlated-variables/", selected, ".asc")
+
+for (i in 1:nlayers(selected_variables)) {
+  writeRaster(selected_variables[[i]], filename= variable_names[i], format="ascii",)
+}
