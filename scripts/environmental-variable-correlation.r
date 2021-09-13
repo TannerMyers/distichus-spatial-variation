@@ -62,16 +62,6 @@ names(variables)
   ## with other variables remains
 usdm::vifcor(x=variables_values, th=0.85) # 0.85 is linear correlation
 
-  # Some environmental variables have negative values so transform them by adding the absolute
-  # value of the minimum value for each variable with negative values
-  ## NOTE: this may not be
-#  for (i in 1:20){
-#      min <- min(variables_values[,i])
-#      if(min < 0){
-#        variables_values[,i] <- variables_values[,i] + abs(min)
-#      }
-#  }
-
   ## `vifstep` function of the `usdm` package estimates VIFs for a Raster Stack
   ## all at once, excluding the one with the highest VIF, repeating until no variables
   ## with VIF higher than th remains
