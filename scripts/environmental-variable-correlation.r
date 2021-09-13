@@ -81,3 +81,6 @@ variable_names <- paste0("sdm/non-correlated-variables/", selected, ".asc")
 for (i in 1:nlayers(selected_variables)) {
   writeRaster(selected_variables[[i]], filename= variable_names[i], format="ascii",)
 }
+
+# Now, output combinations of selected variables for Maxent ENM estimation with `kuenm` package
+vs <- kuenm_varcomb(var.dir = "sdm/non-correlated-variables", out.dir="sdm/M_variables", min.number=3, in.format ="ascii", out.format="ascii")
