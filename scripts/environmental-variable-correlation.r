@@ -8,12 +8,13 @@ setwd(working_dir)
 library(ellipsenm)
 library(kuenm)
 library(usdm)
+library(corrplot)
 library(raster)
 library(tidyverse)
 
 # read layers
-variables <- stack(list.files(path="sdm/calibration-areas/A_distichus-calibration-area", pattern=".asc", full.names=TRUE))
-    plot(variables)
+variables <- raster::stack(list.files(path="sdm/calibration-areas/A_distichus-calibration-area", pattern=".asc", full.names=TRUE))
+    # plot(variables)
     # getting data from the variables
     variables_values <- na.omit(values(variables))
 
@@ -25,6 +26,10 @@ if (dim(variables_values)[1] > 50000) {
 # correlation matrix calculation
 correlation_matrix <- cor(variables_values)
 
+  ## visualize relationships between variables
+  corrplot(correlation_matrix)
+  corrplot.mixed(correlation_matrix, upper="ellipse", lower="number")
+
 # saving correlation matrix
 write.csv(correlation_matrix, "sdm/calibration-areas/A_distichus-calibration-area/variables_correlation_matrix.csv",
           row.names = TRUE)
@@ -32,7 +37,7 @@ write.csv(correlation_matrix, "sdm/calibration-areas/A_distichus-calibration-are
 # detecting correlated varaibles more easily
 correlation_matrix1 <- correlation_matrix # making other table with results
 
-max_cor <- 0.9 # maximum value of correlation allowed
+max_cor <- 0.85 # maximum value of correlation allowed
 
 for (i in 1:dim(correlation_matrix1)[2]) { #correlated values will turn into 2 for easier detection
   for (j in 1:dim(correlation_matrix1)[1]) {
@@ -49,7 +54,28 @@ write.csv(correlation_matrix1, "sdm/calibration-areas/A_distichus-calibration-ar
 View(correlation_matrix1) # selection should be done manually, 2 = correlated
 names(variables)
 
-usdm::vifcor(x=variables_values, th=0.85)
+
+# Estimate Variance Influence Factors (VIFs) for each of the predictors
+  ## `vifcor` function of the `usdm` package estimates VIFs for a Raster Stack
+  ## by finding a pair of variables with a maximum linear correlation and excludes
+  ## the one with the greater VIF until no variable with a high correlation coefficient
+  ## with other variables remains
+usdm::vifcor(x=variables_values, th=0.85) # 0.85 is linear correlation
+
+  # Some environmental variables have negative values so transform them by adding the absolute
+  # value of the minimum value for each variable with negative values
+  ## NOTE: this may not be
+#  for (i in 1:20){
+#      min <- min(variables_values[,i])
+#      if(min < 0){
+#        variables_values[,i] <- variables_values[,i] + abs(min)
+#      }
+#  }
+
+  ## `vifstep` function of the `usdm` package estimates VIFs for a Raster Stack
+  ## all at once, excluding the one with the highest VIF, repeating until no variables
+  ## with VIF higher than th remains
+usdm::vifstep(x=variables_values, th=10) # 10 is the threshold value of VIF 
 
 dir.create("sdm/non-correlated-variables")
 selected_variables <- variables[[c()]]
