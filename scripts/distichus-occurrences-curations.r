@@ -32,6 +32,7 @@ library(purrr)
 library(ggplot2)
 library(ggmap)
 library(httpgd)
+library(tidyverse)
 
 # Directories
 working_dir <- getwd()
@@ -48,6 +49,9 @@ dir.create(output_dir)
 ad <- occ("Anolis distichus", limit = 100000)
 gbif_occs <- ad$gbif$data$Anolis_distichus
 head(gbif_occs)
+
+## write gbif_occs to file to create a derived dataset – this gives us a citable DOI for the GBIF data we're using
+write_csv(gbif_occs, "data/GBIF/Anolis_distichus_GBIF_download.csv")
 
 sp_search <- occ_search(taxonKey = ad$gbif$Anolis_distichus$taxonKey[1])
 cit <- gbif_citation(sp_search)
