@@ -117,7 +117,7 @@ points(occ[, 2:3], col = "red", pch = 19)
 axis(side=2)
 axis(side=1)
 
-write.csv(occ, "A_distichus_clean.csv", row.names=FALSE)
+write.csv(occ, paste0(output_dir, "A_distichus_clean.csv"), row.names=FALSE)
 
 #-------------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ write.csv(occ, "A_distichus_clean.csv", row.names=FALSE)
 
 ## spatially thin occurrences by 30 km
 occ_thin <- thin_data(occ, "longitude", "latitude", thin_distance = 30,
-                    save =TRUE, name = "A_distichus_30km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_distichus_30km")
 
 maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_thin[,2:3], col = "red", pch =19)
@@ -254,28 +254,28 @@ write.csv(occ_ig, paste0(output_dir,"A_d_ignigularis.csv"), row.names=FALSE)
 
 ## spatially thin A. d. ignigularis occurrences by 10 km
 occ_ig_thin <- thin_data(occ_ig, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "A_d_ignigularis_10km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_d_ignigularis_10km")
 
 maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_ig_thin[,2:3], col = "orange", pch =19)
 
 ## spatially thin A. d. ravitergum occurrences by 10 km
 occ_rav_thin <- thin_data(occ_rav, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "A_d_ravitergum_10km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_d_ravitergum_10km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_rav_thin[,2:3], col = "yellow", pch =19)
 
 ## spatially thin A. d. properus occurrences by 10 km
 occ_prop_thin <- thin_data(occ_prop, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "A_d_properus_10km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_d_properus_10km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_prop_thin[,2:3], col = "gray", pch =19)
 
 ## spatially thin A. d. favillarum occurrences by 10 km
 occ_fav_thin <- thin_data(occ_fav, "longitude", "latitude", thin_distance = 3,
-                    save =TRUE, name = "A_d_favillarum_3km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_d_favillarum_3km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_fav_thin[,2:3], col = "purple", pch =19)
@@ -283,14 +283,14 @@ points(occ_fav_thin[,2:3], col = "purple", pch =19)
 
 ## spatially thin A. d. dominicensis occurrences by 10 km
 occ_dom_thin <- thin_data(occ_dom, "longitude", "latitude", thin_distance = 15,
-                    save =TRUE, name = "A_d_dominicensis_30km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_d_dominicensis_30km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_dom_thin[,2:3], col = "maroon", pch =19)
 
 ## spatially thin Haitian A. distichus subspecies occurrences by 10 km
 occ_haiti_thin <- thin_data(occ_haiti, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "A_distichus_Tiburon_10km")
+                    save =TRUE, name = "sdm/thinned-datasets/A_distichus_Tiburon_10km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_haiti_thin[,2:3], col = "blue", pch =19)
