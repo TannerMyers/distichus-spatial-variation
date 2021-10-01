@@ -32,7 +32,7 @@ setwd(working_dir)
 # Setting variables
 
 # create directory to output files
-output_dir <- "sdm/calibration-areas/"
+output_dir <- "enm/calibration-areas/"
 dir.create(output_dir)
 
 ## considering earth's distortion. 
@@ -80,19 +80,19 @@ create_M <- function(occ, taxon) {
 #
 
 ## Load inputs for `create_M`
-all_distichus_occs <- read_csv("sdm/thinned-datasets/A_distichus_30km.csv")
+all_distichus_occs <- read_csv("enm/thinned-datasets/A_distichus_30km.csv")
 distichus <- "A_distichus"
-dom_occs <- read_csv("sdm/thinned-datasets/A_d_dominicensis_30km.csv")
+dom_occs <- read_csv("enm/thinned-datasets/A_d_dominicensis_30km.csv")
 dom <- "A_d_dominicensis"
-ign_occs <- read_csv("sdm/thinned-datasets/A_d_ignigularis_10km.csv")
+ign_occs <- read_csv("enm/thinned-datasets/A_d_ignigularis_10km.csv")
 ign <- "A_d_ignigularis"
-rav_occs <- read_csv("sdm/thinned-datasets/A_d_ravitergum_10km.csv")
+rav_occs <- read_csv("enm/thinned-datasets/A_d_ravitergum_10km.csv")
 rav <- "A_d_ravitergum"
-fav_occs <- read_csv("sdm/thinned-datasets/A_d_favillarum_3km.csv")
+fav_occs <- read_csv("enm/thinned-datasets/A_d_favillarum_3km.csv")
 fav <- "A_d_favillarum"
-prop_occs <- read_csv("sdm/thinned-datasets/A_d_properus_10km.csv")
+prop_occs <- read_csv("enm/thinned-datasets/A_d_properus_10km.csv")
 prop <- "A_d_properus"
-haiti_occs <- read_csv("sdm/thinned-datasets/A_distichus_Tiburon_10km.csv")
+haiti_occs <- read_csv("enm/thinned-datasets/A_distichus_Tiburon_10km.csv")
 haiti <- "A_distichus_Tiburon"
 
 ## Run it on Anolis distichus complete dataset
@@ -136,10 +136,10 @@ elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
 
 env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names=TRUE)
 
-dirs <- list.files("sdm/calibration-areas/")
+dirs <- list.files("enm/calibration-areas/")
 for (dir in dirs){
     ## provide whole path name to redefine "dir"
-    dir <- paste0("sdm/calibration-areas/",dir,"/")
+    dir <- paste0("enm/calibration-areas/",dir,"/")
 
     M <- readOGR(dir, layer = "M")
 
