@@ -123,21 +123,23 @@ write.csv(occ, paste0(output_dir, "A_distichus_clean.csv"), row.names=FALSE)
 
 #-----------------------------Thinning------------------------------------------
 
+## make directory to hold input files for ecological niche models
+## In this case, thinned occurrence records
+dir.create("enm/thinned-datasets")
+
 ## spatially thin occurrences by 30 km
 occ_thin <- thin_data(occ, "longitude", "latitude", thin_distance = 30,
-                    save =TRUE, name = "sdm/thinned-datasets/A_distichus_30km")
+                    save =TRUE, name = "enm/thinned-datasets/A_distichus_30km")
 
 maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_thin[,2:3], col = "red", pch =19)
-
-## does it make sense to thin by country if I am only interested in two countries?
 
 #-------------------------------------------------------------------------------
 
 #-----------------Splitting training and testing data---------------------------
 # model calibration folder
-dir.create("sdm/Model_calibration")
-dir.create("sdm/Model_calibration/All_Records_30km_thin")
+dir.create("enm/Model_calibration")
+dir.create("enm/Model_calibration/All_Records_30km_thin")
 
 # split distance based thinned data for 5 exercises of model calibration
 n <- 1:5
@@ -145,7 +147,7 @@ splits <- lapply(n, function(x) {
   set.seed(x)
   occsp_50 <- split_data(occ_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/All_Records_30km_thin/Adist", x))
+                         name = paste0("enm/Model_calibration/All_Records_30km_thin/Adist", x))
 })
 
 #-------------------------------------------------------------------------------
@@ -156,30 +158,23 @@ splits <- lapply(n, function(x) {
 # A. d. properus and A. d. sejunctus, A. d. dominicensis (1 & 2), and the Haitian endemic 
 # subspecies.
 
-## First, subset the dataframe of all occurrences to include only Hispaniolan records
-occs_hispaniola <- dplyr::semi_join(x=occs, y=occ, by=c("scientificName", "longitude", "latitude", "year"))
-  ## exclude duplicates
-occs_hispaniola <- occs_hispaniola[!duplicated(paste(occs_hispaniola$longitude, occs_hispaniola$latitude)), ] # Same number of records as "occ"
-
-occs_hispaniola <- occs_hispaniola[, c("scientificName", "longitude", "latitude", "year")]
-
 ## Do favillarum subset
-maps::map(xlim = range(occs_hispaniola$longitude), ylim = range(occs_hispaniola$latitude), interior =TRUE)
-points(occs_hispaniola[occs_hispaniola$scientificName==c("Anolis distichus favillarum Schwartz, 1968"),2:3], col = "red", pch =19)
-points(occs_hispaniola[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
+maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRUE)
+points(occ[occ$scientificName==c("Anolis distichus favillarum Schwartz, 1968"),2:3], col = "red", pch =19)
+points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_fav <- occs_hispaniola[occs_hispaniola$latitude<=18.21,]
+occ_fav <- occ[occ$latitude<=18.21,]
 occ_fav <- occ_fav[occ_fav$latitude>=17.96,]
 occ_fav <- occ_fav[occ_fav$longitude<=(-71.07444),]
 occ_fav <- occ_fav[occ_fav$longitude>=(-71.29306),] # done
 
 ## Do ignigularis subset
-maps::map(xlim = range(occs_hispaniola$longitude), ylim = range(occs_hispaniola$latitude), interior =TRUE)
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis distichus ignigularis Mertens, 1939",2:3], col = "red", pch =19)
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis ignigularis Glor & Laport, 2012",2:3], col = "red", pch =19)
-points(occs_hispaniola[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
+maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRUE)
+points(occ[occ$scientificName=="Anolis distichus ignigularis Mertens, 1939",2:3], col = "red", pch =19)
+points(occ[occ$scientificName=="Anolis ignigularis Glor & Laport, 2012",2:3], col = "red", pch =19)
+points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_ig <- occs_hispaniola[occs_hispaniola$latitude<=19.16,]
+occ_ig <- occ[occ$latitude<=19.16,]
 occ_ig <- occ_ig[occ_ig$latitude>=18.03407,]
 occ_ig <- occ_ig[occ_ig$longitude<=(-69),]
 occ_ig <- occ_ig[occ_ig$longitude>=(-70.43866),] # done
@@ -188,54 +183,54 @@ occ_ig <- occ_ig[occ_ig$longitude>=(-70.43866),] # done
 occ_ig <- occ_ig %>% filter(latitude != 18.23861)
 
 # For the Samaná penninsula population of A. d. ignigularis
-occ_ig_Samana <- occs_hispaniola[occs_hispaniola$longitude>=(-69.66),]
+occ_ig_Samana <- occ[occ$longitude>=(-69.66),]
 occ_ig_Samana <- occ_ig_Samana[occ_ig_Samana$latitude>=19.16,]
 
 occ_ig <- bind_rows(occ_ig_Samana, occ_ig)
 
 ## Do ravitergum subset
-maps::map(xlim = range(occs_hispaniola$longitude), ylim = range(occs_hispaniola$latitude), interior =TRUE)
-points(occs_hispaniola[occs_hispaniola$scientificName==c("Anolis ravitergum Glor & Laport, 2012"), 2:3], 
+maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRUE)
+points(occ[occ$scientificName==c("Anolis ravitergum Glor & Laport, 2012"), 2:3], 
       col = "red", pch =19)
-points(occs_hispaniola[occs_hispaniola$scientificName==c("Anolis distichus ravitergum Schwartz, 1968"), 2:3], 
+points(occ[occ$scientificName==c("Anolis distichus ravitergum Schwartz, 1968"), 2:3], 
       col = "red", pch =19)
-points(occs_hispaniola[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
+points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_rav <- occs_hispaniola[occs_hispaniola$latitude<=18.4692,]
+occ_rav <- occ[occ$latitude<=18.4692,]
 occ_rav <- occ_rav[occ_rav$latitude>=18.2383,]
 occ_rav <- occ_rav[occ_rav$longitude<=(-70.32293),]
 occ_rav <- occ_rav[occ_rav$longitude>=(-71.58279),] # done
 
 ## Do properus/sejunctus subset
-maps::map(xlim = range(occs_hispaniola$longitude), ylim = range(occs_hispaniola$latitude), interior =TRUE)
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis distichus sejunctus Schwartz, 1968", 2:3], col = "red", pch =19)
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis distichus properus Schwartz, 1968", 2:3], col = "red", pch =19) 
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis properus Glor & Laport, 2012",2:3], col = "red", pch =19)
-points(occs_hispaniola[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
+maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRUE)
+points(occ[occ$scientificName=="Anolis distichus sejunctus Schwartz, 1968", 2:3], col = "red", pch =19)
+points(occ[occ$scientificName=="Anolis distichus properus Schwartz, 1968", 2:3], col = "red", pch =19) 
+points(occ[occ$scientificName=="Anolis properus Glor & Laport, 2012",2:3], col = "red", pch =19)
+points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_prop <- occs_hispaniola[occs_hispaniola$latitude<=18.9,]
-occ_prop <- occs_hispaniola[occs_hispaniola$latitude>=18.3,]
+occ_prop <- occ[occ$latitude<=18.9,]
+occ_prop <- occ[occ$latitude>=18.3,]
 occ_prop <- occ_prop[occ_prop$longitude>=(-69),]
 occ_prop <- occ_prop[occ_prop$longitude<(-68.2251),]
 
 ## Do Haitian subset
-maps::map(xlim = range(occs_hispaniola$longitude), ylim = range(occs_hispaniola$latitude), interior =TRUE)
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis distichus vinosus Schwartz 1968",2:3], col = "red", pch =19)
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis distichus aurifer Schwartz, 1968",2:3], col = "red", pch =19) 
-points(occs_hispaniola[occs_hispaniola$scientificName=="Anolis distichus suppar Schwartz, 1968",2:3],col = "red", pch =19)
-points(occs_hispaniola[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
+maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRUE)
+points(occ[occ$scientificName=="Anolis distichus vinosus Schwartz 1968",2:3], col = "red", pch =19)
+points(occ[occ$scientificName=="Anolis distichus aurifer Schwartz, 1968",2:3], col = "red", pch =19) 
+points(occ[occ$scientificName=="Anolis distichus suppar Schwartz, 1968",2:3],col = "red", pch =19)
+points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_haiti <- occs_hispaniola[occs_hispaniola$latitude<18.72,]
+occ_haiti <- occ[occ$latitude<18.72,]
 occ_haiti <- occ_haiti[occ_haiti$longitude<(-71.8),] # done
 
 ## Do dominicensis subset
-maps::map(xlim = range(occs_hispaniola$longitude), ylim = range(occs_hispaniola$latitude), interior =TRUE)
-points(occs_hispaniola[occs_hispaniola$scientificName==c("Anolis distichus dominicensis Reinhardt And Lütken, 1863"),2:3], col = "red", pch =19) 
-points(occs_hispaniola[occs_hispaniola$scientificName==c("Anolis dominicensis Reinhardt And Lütken, 1863"),2:3], col = "blue", pch =20)
-points(occs_hispaniola[occs_hispaniola$scientificName==c("Anolis distichus albidogularis Mertens, 1939"),2:3], col = "yellow", pch =21)
-points(occs_hispaniola[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
+maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRUE)
+points(occ[occ$scientificName==c("Anolis distichus dominicensis Reinhardt And Lütken, 1863"),2:3], col = "red", pch =19) 
+points(occ[occ$scientificName==c("Anolis dominicensis Reinhardt And Lütken, 1863"),2:3], col = "blue", pch =20)
+points(occ[occ$scientificName==c("Anolis distichus albidogularis Mertens, 1939"),2:3], col = "yellow", pch =21)
+points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_dom <- occs_hispaniola[occs_hispaniola$latitude>=18.72,]
+occ_dom <- occ[occ$latitude>=18.72,]
 occ_dom <- occ_dom[occ_dom$latitude<=20,]
 occ_dom <- occ_dom[occ_dom$longitude<=(-69.62),]
 
@@ -254,28 +249,28 @@ write.csv(occ_ig, paste0(output_dir,"A_d_ignigularis.csv"), row.names=FALSE)
 
 ## spatially thin A. d. ignigularis occurrences by 10 km
 occ_ig_thin <- thin_data(occ_ig, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "sdm/thinned-datasets/A_d_ignigularis_10km")
+                    save =TRUE, name = "enm/thinned-datasets/A_d_ignigularis_10km")
 
 maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_ig_thin[,2:3], col = "orange", pch =19)
 
 ## spatially thin A. d. ravitergum occurrences by 10 km
 occ_rav_thin <- thin_data(occ_rav, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "sdm/thinned-datasets/A_d_ravitergum_10km")
+                    save =TRUE, name = "enm/thinned-datasets/A_d_ravitergum_10km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_rav_thin[,2:3], col = "yellow", pch =19)
 
 ## spatially thin A. d. properus occurrences by 10 km
 occ_prop_thin <- thin_data(occ_prop, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "sdm/thinned-datasets/A_d_properus_10km")
+                    save =TRUE, name = "enm/thinned-datasets/A_d_properus_10km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_prop_thin[,2:3], col = "gray", pch =19)
 
 ## spatially thin A. d. favillarum occurrences by 10 km
 occ_fav_thin <- thin_data(occ_fav, "longitude", "latitude", thin_distance = 3,
-                    save =TRUE, name = "sdm/thinned-datasets/A_d_favillarum_3km")
+                    save =TRUE, name = "enm/thinned-datasets/A_d_favillarum_3km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_fav_thin[,2:3], col = "purple", pch =19)
@@ -283,14 +278,14 @@ points(occ_fav_thin[,2:3], col = "purple", pch =19)
 
 ## spatially thin A. d. dominicensis occurrences by 10 km
 occ_dom_thin <- thin_data(occ_dom, "longitude", "latitude", thin_distance = 15,
-                    save =TRUE, name = "sdm/thinned-datasets/A_d_dominicensis_30km")
+                    save =TRUE, name = "enm/thinned-datasets/A_d_dominicensis_30km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_dom_thin[,2:3], col = "maroon", pch =19)
 
 ## spatially thin Haitian A. distichus subspecies occurrences by 10 km
 occ_haiti_thin <- thin_data(occ_haiti, "longitude", "latitude", thin_distance = 10,
-                    save =TRUE, name = "sdm/thinned-datasets/A_distichus_Tiburon_10km")
+                    save =TRUE, name = "enm/thinned-datasets/A_distichus_Tiburon_10km")
 
 #maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
 points(occ_haiti_thin[,2:3], col = "blue", pch =19)
@@ -299,12 +294,12 @@ points(occ_haiti_thin[,2:3], col = "blue", pch =19)
 
 #-----------------Splitting training and testing data---------------------------
 # model calibration folder
-dir.create("sdm/Model_calibration/fav_records_thin")
-dir.create("sdm/Model_calibration/rav_records_thin")
-dir.create("sdm/Model_calibration/ig_records_thin")
-dir.create("sdm/Model_calibration/dom_records_thin")
-dir.create("sdm/Model_calibration/prop_records_thin")
-dir.create("sdm/Model_calibration/haiti_records_thin")
+dir.create("enm/Model_calibration/fav_records_thin")
+dir.create("enm/Model_calibration/rav_records_thin")
+dir.create("enm/Model_calibration/ig_records_thin")
+dir.create("enm/Model_calibration/dom_records_thin")
+dir.create("enm/Model_calibration/prop_records_thin")
+dir.create("enm/Model_calibration/haiti_records_thin")
 
 # split distance based thinned data for 5 exercises of model calibration
 n <- 1:5
@@ -312,7 +307,7 @@ fav_splits <- lapply(n, function(x) {
   set.seed(x)
   occfav_3 <- split_data(occ_fav_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/fav_records_thin/fav", x))
+                         name = paste0("enm/Model_calibration/fav_records_thin/fav", x))
 })
 
 n <- 1:5
@@ -320,7 +315,7 @@ rav_splits <- lapply(n, function(x) {
   set.seed(x)
   occrav_10 <- split_data(occ_rav_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/rav_records_thin/rav", x))
+                         name = paste0("enm/Model_calibration/rav_records_thin/rav", x))
 })
 
 n <- 1:5
@@ -328,7 +323,7 @@ ig_splits <- lapply(n, function(x) {
   set.seed(x)
   occig_10 <- split_data(occ_ig_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/ig_records_thin/ig", x))
+                         name = paste0("enm/Model_calibration/ig_records_thin/ig", x))
 })
 
 n <- 1:5
@@ -336,7 +331,7 @@ prop_splits <- lapply(n, function(x) {
   set.seed(x)
   occprop_10 <- split_data(occ_prop_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/prop_records_thin/prop", x))
+                         name = paste0("enm/Model_calibration/prop_records_thin/prop", x))
 })
 
 n <- 1:5
@@ -344,7 +339,7 @@ dom_splits <- lapply(n, function(x) {
   set.seed(x)
   occdom_15 <- split_data(occ_dom_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/dom_records_thin/dom", x))
+                         name = paste0("enm/Model_calibration/dom_records_thin/dom", x))
 })
 
 n <- 1:5
@@ -352,7 +347,7 @@ haiti_splits <- lapply(n, function(x) {
   set.seed(x)
   occhaiti_10 <- split_data(occ_haiti_thin, method = "random", longitude = "longitude", 
                          latitude = "latitude", train_proportion = 0.51, save = T, # 0.51 trick for getting training with 1 record more than testing
-                         name = paste0("sdm/Model_calibration/haiti_records_thin/haiti", x))
+                         name = paste0("enm/Model_calibration/haiti_records_thin/haiti", x))
 })
 
 #-------------------------------------------------------------------------------
