@@ -13,7 +13,7 @@ library(raster)
 library(tidyverse)
 
 # read layers
-variables <- raster::stack(list.files(path="sdm/calibration-areas/A_distichus-calibration-area", pattern=".asc", full.names=TRUE))
+variables <- raster::stack(list.files(path="enm/calibration-areas/A_distichus-calibration-area", pattern=".asc", full.names=TRUE))
     # plot(variables)
     # getting data from the variables
     variables_values <- na.omit(values(variables))
@@ -31,7 +31,7 @@ correlation_matrix <- cor(variables_values)
   corrplot.mixed(correlation_matrix, upper="ellipse", lower="number")
 
 # saving correlation matrix
-write.csv(correlation_matrix, "sdm/calibration-areas/A_distichus-calibration-area/variables_correlation_matrix.csv",
+write.csv(correlation_matrix, "enm/calibration-areas/A_distichus-calibration-area/variables_correlation_matrix.csv",
           row.names = TRUE)
 
 # detecting correlated varaibles more easily
@@ -47,7 +47,7 @@ for (i in 1:dim(correlation_matrix1)[2]) { #correlated values will turn into 2 f
 }
 
 # saving correlation matrix with rows exceeding maximum correlation threshold marked
-write.csv(correlation_matrix1, "sdm/calibration-areas/A_distichus-calibration-area/variables_correlation_matrix_collinear_marked.csv",
+write.csv(correlation_matrix1, "enm/calibration-areas/A_distichus-calibration-area/variables_correlation_matrix_collinear_marked.csv",
           row.names = TRUE)
 
 # #checking the table
@@ -68,7 +68,7 @@ usdm::vifcor(x=variables_values, th=0.85) # 0.85 is linear correlation
 usdm::vifstep(x=variables_values, th=10) # 10 is the threshold value of VIF 
 
 # Create a directory to contain non-correlated variables
-dir.create("sdm/non-correlated-variables")
+dir.create("enm/non-correlated-variables")
 
 selected<- c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05", 
                                   "CHELSA_bio10_15", "CHELSA_bio10_16", "march_EVI_mean",
@@ -76,11 +76,11 @@ selected<- c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
 
 selected_variables <- variables[[selected]]
 
-variable_names <- paste0("sdm/non-correlated-variables/", selected, ".asc")
+variable_names <- paste0("enm/non-correlated-variables/", selected, ".asc")
 
 for (i in 1:nlayers(selected_variables)) {
   writeRaster(selected_variables[[i]], filename= variable_names[i], format="ascii",)
 }
 
 # Now, output combinations of selected variables for Maxent ENM estimation with `kuenm` package
-vs <- kuenm_varcomb(var.dir = "sdm/non-correlated-variables", out.dir="sdm/M_variables", min.number=3, in.format ="ascii", out.format="ascii")
+vs <- kuenm_varcomb(var.dir = "enm/non-correlated-variables", out.dir="enm/M_variables", min.number=3, in.format ="ascii", out.format="ascii")
