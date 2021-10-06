@@ -1,4 +1,5 @@
 .DS_Store
+.RData
 pcas/
 temp_plots/
 writing/
