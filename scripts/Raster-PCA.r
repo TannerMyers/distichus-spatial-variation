@@ -9,6 +9,7 @@ library(rgeos)
 library(rgdal)
 library(RStoolbox)
 library(tidyverse)
+library(ntbox)
 
 ## load environmental variables as a raster stack 
 env <- raster::stack(list.files("enm/calibration-areas/A_distichus-calibration-area", pattern=".asc", full.names=TRUE))
