@@ -30,6 +30,7 @@ occ_tra <- "occurrences_train.csv"
 back_dir <- "M_2"
 batch_cal <- "Candidate_models"
 out_dir <- "Candidate_Models"
+out_dir_eval <- "Calibration_results"
 reg_mult <- c(seq(0.1, 1, 0.1), seq(2, 6, 1), 8, 10)
 f_clas <- "all"
 args <- NULL
@@ -37,6 +38,7 @@ maxent_path <- "/home/tcm0036/distichus-spatial-variation/enm"
 wait <- FALSE
 run <- TRUE
 
-kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, back_dir=back_dir, batch = batch_cal,
-          out.dir = out_dir, reg.mult = reg_mult, f.clas = f_clas, args = args,
-          maxent.path = maxent_path, wait = wait, run = run)
+kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, back.dir=back_dir, batch = batch_cal,
+          out.dir.models = out_dir, out.dir.eval = out_dir_eval,
+          reg.mult = reg_mult, f.clas = f_clas, args = args,
+          maxent.path = maxent_path, selection = "OR_AICc", wait = wait, run = run)
