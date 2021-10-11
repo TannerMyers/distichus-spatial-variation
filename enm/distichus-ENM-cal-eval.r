@@ -26,7 +26,8 @@ prepare_swd(occ=jointPoints, species="species", longitude="longitude", latitude=
 # Assign variables
 occ_joint <- "occurrences_joint.csv"
 occ_tra <- "occurrences_train.csv"
-M_var_dir <- "M_variables_test"
+#M_var_dir <- "M_variables_test"
+back_dir <- "M_2"
 batch_cal <- "Candidate_models"
 out_dir <- "Candidate_Models"
 reg_mult <- c(seq(0.1, 1, 0.1), seq(2, 6, 1), 8, 10)
@@ -36,6 +37,6 @@ maxent_path <- "/home/tcm0036/distichus-spatial-variation/enm"
 wait <- FALSE
 run <- TRUE
 
-kuenm_cal(occ.joint = occ_joint, occ.tra = occ_tra, M.var.dir = M_var_dir, batch = batch_cal,
+kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, back_dir=back_dir, batch = batch_cal,
           out.dir = out_dir, reg.mult = reg_mult, f.clas = f_clas, args = args,
           maxent.path = maxent_path, wait = wait, run = run)
