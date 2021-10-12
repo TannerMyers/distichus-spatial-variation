@@ -8,25 +8,22 @@ occ_joint <- "Adist1_all.csv" # All occurrences
 jointPoints <- read.csv(occ_joint)
 
 ## load seven environmental variables identified as non-correlated
-variables1 <- raster::stack(list.files(path="M_variables_test/Set_99", pattern=".asc$", full.names=TRUE))
-## load first 5 principal components output by "Raster-PCA.r" script that account for 96.4% of the variation 
-variables2 <- raster::stack(list.files(path="M_variables_test/PC_set", pattern=".asc$", full.names=TRUE))
-## merge into single stack
-variables <- raster::stack(variables1, variables2) 
+## CHELSA_bio10_03.asc CHELSA_bio10_04.asc CHELSA_bio10_05.asc CHELSA_bio10_15.asc CHELSA_bio10_16.asc march_EVI_mean.asc may_NDVI_mean.asc
+variables <- raster::stack(list.files(path="M_variables_test/Set_99", pattern=".asc$", full.names=TRUE)) 
 
-
-set <- list(Set_1=c(names(variables1)), Set_2=c(names(variables2)))
+set <- list(Set_1=c(names(variables)), Set_2=c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_15", "march_EVI_mean", "may_NDVI_mean"), Set_3=c("CHELSA_bio10_05", "CHELSA_bio10_16","march_EVI_mean", "may_NDVI_mean"),
+	   Set_4=c("CHELSA_bio10_04","CHELSA_bio10_16","may_NDVI_mean"))
 
 prepare_swd(occ=jointPoints, species="species", longitude="longitude", latitude="latitude", 
             data.split.method = "random",
-            train.proportion = 0.5, raster.layers=variables2, sample.size = 30000,
+            train.proportion = 0.5, raster.layers=variables, sample.size = 30000,
             var.sets = set, save = T, name.occ="occurrences",
             back.folder="M_2", set.seed = 1)
 
 # Assign variables
 occ_joint <- "occurrences_joint.csv"
 occ_tra <- "occurrences_train.csv"
-#M_var_dir <- "M_variables_test"
+occ_test <- "occurrences_test.csv"
 back_dir <- "M_2"
 batch_cal <- "Candidate_models"
 out_dir <- "Candidate_Models"
@@ -38,7 +35,12 @@ maxent_path <- "/home/tcm0036/distichus-spatial-variation/enm"
 wait <- FALSE
 run <- TRUE
 
-kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, back.dir=back_dir, batch = batch_cal,
+## Candidate models are a large set of candidate models created to respond to 
+## the need to test broad suites of parameter combinations, such as, distinct regularization multiplier values, 
+## various feature classes, and different sets of environmental variables. 
+## The following code calls the help page of the function kuenm_cal.
+kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, occ.test = occ_test, 
+	  back.dir = back_dir, batch = batch_cal,
           out.dir.models = out_dir, out.dir.eval = out_dir_eval,
-          reg.mult = reg_mult, f.clas = f_clas, args = args,
-          maxent.path = maxent_path, selection = "OR_AICc", wait = wait, run = run)
+          reg.mult = reg_mult, f.clas = f_clas, args = args, max.memory = 1000,
+          maxent.path = maxent_path, selection = "OR_AICc", kept = FALSE)
