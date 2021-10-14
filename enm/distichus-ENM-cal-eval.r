@@ -50,8 +50,7 @@ rep_n <- 10
 rep_type <- "Bootstrap"
 jackknife <- FALSE
 out_format <- "logistic"
-project <- TRUE
-G_var_dir <- "G"
+project <- FALSE # not projecting model 
 ext_type <- "all"
 write_mess <- FALSE
 write_clamp <- FALSE
@@ -60,9 +59,9 @@ run <- TRUE
 args <- NULL
 out.dir <- "mod_swd"
 
-kuenm_mod_swd(occ_joint, back_dir, out_dir_eval, batch, rep_n,
+kuenm_mod_swd(occ_joint, back_dir, out_dir_eval, batch_cal, rep_n,
               rep_type, jackknife,
               max.memory = 1000, out_format,
-              project, G_var_dir, ext_type,
+              project, ext_type,
               write_mess, write_clamp, maxent_path,
               args, out.dir, wait, run)
