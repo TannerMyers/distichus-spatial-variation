@@ -46,22 +46,22 @@ run <- TRUE
 #           maxent.path = maxent_path, selection = "OR_AICc", kept = FALSE)
 
 # Assign variables needed for generating final models
+batch_final = "Final_models"
 rep_n <- 10
 rep_type <- "Bootstrap"
 jackknife <- FALSE
 out_format <- "logistic"
 project <- FALSE # not projecting model 
-ext_type <- "all"
 write_mess <- FALSE
 write_clamp <- FALSE
 wait <- FALSE
 run <- TRUE
 args <- NULL
-out.dir <- "mod_swd"
+out_dir <- "mod_swd"
 
-kuenm_mod_swd(occ_joint, back_dir, out_dir_eval, batch_cal, rep_n,
+kuenm_mod_swd(occ_joint, back_dir, out_dir_eval, batch_final, rep_n,
               rep_type, jackknife,
               max.memory = 1000, out_format,
-              project, ext_type,
-              write_mess, write_clamp, maxent_path,
-              args, out.dir, wait, run)
+              project,
+              write_mess, write_clamp, maxent.path = maxent_path,
+	      args, out.dir = out_dir, wait, run)
