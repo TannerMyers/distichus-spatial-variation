@@ -32,21 +32,20 @@ reg_mult <- c(seq(0.1, 1, 0.1), seq(2, 6, 1), 8, 10)
 f_clas <- "all"
 args <- NULL
 maxent_path <- "/home/tcm0036/distichus-spatial-variation/enm"
-wait <- FALSE
-run <- TRUE
 
 ## Candidate models are a large set of candidate models created to respond to 
 ## the need to test broad suites of parameter combinations, such as, distinct regularization multiplier values, 
 ## various feature classes, and different sets of environmental variables. 
 ## The following code calls the help page of the function kuenm_cal.
-# kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, occ.test = occ_test, 
-# 	  back.dir = back_dir, batch = batch_cal,
-#           out.dir.models = out_dir, out.dir.eval = out_dir_eval,
-#           reg.mult = reg_mult, f.clas = f_clas, args = args, max.memory = 1000,
-#           maxent.path = maxent_path, selection = "OR_AICc", kept = FALSE)
+ kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, occ.test = occ_test, 
+ 	  back.dir = back_dir, batch = batch_cal,
+           out.dir.models = out_dir, out.dir.eval = out_dir_eval,
+           reg.mult = reg_mult, f.clas = f_clas, args = args, max.memory = 1000,
+           maxent.path = maxent_path, selection = "OR_AICc", kept = F)
 
 # Assign variables needed for generating final models
 batch_final = "Final_models"
+out_dir_final = "Final_Models"
 rep_n <- 10
 rep_type <- "Bootstrap"
 jackknife <- FALSE
@@ -54,14 +53,12 @@ out_format <- "logistic"
 project <- FALSE # not projecting model 
 write_mess <- FALSE
 write_clamp <- FALSE
-wait <- FALSE
-run <- TRUE
 args <- NULL
 out_dir <- "mod_swd"
 
-kuenm_mod_swd(occ_joint, back_dir, out_dir_eval, batch_final, rep_n,
+kuenm_mod_swd(occ_joint, back_dir, out_dir_final, batch_final, rep_n,
               rep_type, jackknife,
               max.memory = 1000, out_format,
               project,
               write_mess, write_clamp, maxent.path = maxent_path,
-	      args, out.dir = out_dir, wait, run)
+	      args, out.dir = out_dir)
