@@ -4,17 +4,17 @@ setwd(working_dir)
 
 library(kuenm)
 
-# occ_joint <- "Adist1_all.csv" # All occurrences
-# jointPoints <- read.csv(occ_joint)
+#occ_joint <- "Adist1_all.csv" # All occurrences
+#jointPoints <- read.csv(occ_joint)
 
 ## load seven environmental variables identified as non-correlated
 ## CHELSA_bio10_03.asc CHELSA_bio10_04.asc CHELSA_bio10_05.asc CHELSA_bio10_15.asc CHELSA_bio10_16.asc march_EVI_mean.asc may_NDVI_mean.asc
-# variables <- raster::stack(list.files(path="M_variables_test/Set_99", pattern=".asc$", full.names=TRUE)) 
+#variables <- raster::stack(list.files(path="M_variables/Set_99", pattern=".asc$", full.names=TRUE)) 
 
-# set <- list(Set_1=c(names(variables)), Set_2=c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_15", "march_EVI_mean", "may_NDVI_mean"), Set_3=c("CHELSA_bio10_05", "CHELSA_bio10_16","march_EVI_mean", "may_NDVI_mean"),
+#set <- list(Set_1=c(names(variables)), Set_2=c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_15", "march_EVI_mean", "may_NDVI_mean"), Set_3=c("CHELSA_bio10_05", "CHELSA_bio10_16","march_EVI_mean", "may_NDVI_mean"),
 # 	   Set_4=c("CHELSA_bio10_04","CHELSA_bio10_16","may_NDVI_mean"))
 
-# prepare_swd(occ=jointPoints, species="species", longitude="longitude", latitude="latitude", 
+#prepare_swd(occ=jointPoints, species="species", longitude="longitude", latitude="latitude", 
 #             data.split.method = "random",
 #             train.proportion = 0.5, raster.layers=variables, sample.size = 30000,
 #             var.sets = set, save = T, name.occ="occurrences",
@@ -36,29 +36,21 @@ maxent_path <- "/home/tcm0036/distichus-spatial-variation/enm"
 ## Candidate models are a large set of candidate models created to respond to 
 ## the need to test broad suites of parameter combinations, such as, distinct regularization multiplier values, 
 ## various feature classes, and different sets of environmental variables. 
-## The following code calls the help page of the function kuenm_cal.
- kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, occ.test = occ_test, 
- 	  back.dir = back_dir, batch = batch_cal,
-           out.dir.models = out_dir, out.dir.eval = out_dir_eval,
-           reg.mult = reg_mult, f.clas = f_clas, args = args, max.memory = 1000,
-           maxent.path = maxent_path, selection = "OR_AICc", kept = F)
+#kuenm_cal_swd(occ.joint = occ_joint, occ.tra = occ_tra, occ.test = occ_test, 
+#	  back.dir = back_dir, batch = batch_cal,
+#          out.dir.models = out_dir, out.dir.eval = out_dir_eval,
+#          reg.mult = reg_mult, f.clas = f_clas, args = args, max.memory = 1000,
+#          maxent.path = maxent_path, selection = "OR_AICc", kept = FALSE)
 
 # Assign variables needed for generating final models
 batch_final = "Final_models"
-out_dir_final = "Final_Models"
 rep_n <- 10
 rep_type <- "Bootstrap"
-jackknife <- FALSE
 out_format <- "logistic"
-project <- FALSE # not projecting model 
-write_mess <- FALSE
-write_clamp <- FALSE
-args <- NULL
-out_dir <- "mod_swd"
+out_dir_mod <- "mod_swd"
 
-kuenm_mod_swd(occ_joint, back_dir, out_dir_final, batch_final, rep_n,
-              rep_type, jackknife,
-              max.memory = 1000, out_format,
-              project,
-              write_mess, write_clamp, maxent.path = maxent_path,
-	      args, out.dir = out_dir)
+kuenm_mod_swd(occ.joint = occ_joint, back.dir = back_dir, out.eval = out_dir_eval, batch = batch_final, 
+	      rep.n = rep_n, rep.type = rep_type, jackknife = FALSE,
+              max.memory = 1000, out.format = out_format, 
+	      project = FALSE, write.mess = FALSE, write.clamp = FALSE, 
+	      maxent.path = maxent_path, args = NULL, out.dir = out_dir_mod)
