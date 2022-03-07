@@ -1,0 +1,368 @@
+# This script includes entire workflow for occurrence data curation and thinning, environmental data exploration,
+# generating 'M', and generating ENMs with MaxEnt implemented in the 'kuenm' R package.
+## Authors: Tanner C. Myers, Pietro L. H. de Mello, Paul M. Hime, and Richard E. Glor
+
+``` {r}
+library(tidyverse)
+library(spocc)
+library(ggmap)
+library(maps)
+library(sp)
+library(sf)
+library(raster)
+library(rgdal)
+library(rgeos)
+library(spThin)
+
+working_dir <- getwd()
+setwd(working_dir)
+
+M_dir <- paste0(working_dir, "/data/occurrences/") # Add where you want unfiltered occurrences to go 
+dir.create(M_dir)
+
+################################################################################################
+### Occurence download & curation 
+################################################################################################
+
+# Get occurrences for Anolis distichus from GBIF, VertNet, and iNaturalist
+ad <- spocc::occ(query = c("Anolis distichus", "Anolis dominicensis",
+    "Anolis ignigularis", "Anolis properus", "Anolis favillarum",
+    "Anolis ravitergum", "Anolis vinosus", "Anolis aurifer", "Anolis suppar"),
+    from = c("vertnet", "gbif", "inat"),
+    limit = 100000)
+
+## Get list of dataframes containing occurrences under different taxon labels from GBIF 
+    gbif_occs <- ad$gbif$data
+    # Combine all dataframes into one large dataframe
+    gbif_occs <- bind_rows(gbif_occs, .id = "column_label")
+
+    # Repeat for iNaturalist and VertNet occurrences
+    inat_occs <- ad$inat$data
+    inat <- bind_rows(inat_occs, .id = "column_label")
+    vertnet_occs <- ad$vertnet$data
+    vertnet_occs <- bind_rows(vertnet_occs, .id = "column_label")
+
+    # Write unfiltered occurrences from the databases to files
+    write_csv(gbif_occs, "Anolis_distichus_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs, "Anolis_distichus_VertNet_occurrences_download.csv")
+    write_csv(inat_occs, "Anolis_distichus_iNat_occurrences_download.csv")
+
+## Create master file of occurrences
+    colnames(gbif_occs)
+    columns <- c("name", "longitude", "latitude", "year", "month", "day")
+
+    occs <- as_tibble(rbind(gbif_occs[, columns], vertnet_occs[, columns]))
+
+    # For iNaturalist occurrences only (naming conventions differ) 
+    ## First, filter out non-research grade, obscured, and private observations
+    inat_occs <- inat_occs[inat_occs$quality_grade=="research",]
+    inat_occs <- inat_occs %>% filter(!geoprivacy %in% c("obscured", "private")) 
+
+    colnames(inat_occs)
+    columns <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
+    inat_occs_filtered <- inat_occs[, columns]
+
+occs <- as_tibble(rbind(occs, inat_occs_filtered))
+write_csv(occs, "unfiltered_distichus_occurrences.csv")
+
+# Clean occurrence data
+
+occs <- read_csv("unfiltered_distichus_occurrences.csv")
+
+## Exclude occurrences without coordinates
+occs <- occs %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
+
+## Exclude duplicate occurrences
+occs <- occs[!duplicated(paste(occs$longitude, occs$latitude)), ]
+
+# Omit samples not from Hispaniola
+    ## To do this, we will load a shapefile of the island of Hispaniola
+    DOM <- getData('GADM', country='DOM', level=0, path = "data/shape-files/", download = F)
+    HTI <- getData('GADM', country='HTI', level=0, path = "data/shape-files/", download =F)
+    row.names(DOM) <- paste("DOM", row.names(DOM), sep="_")
+    row.names(HTI) <- paste("HTI", row.names(HTI), sep="_")
+    Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
+    Hispaniola <- gSimplify(Hispaniola, tol=0.01, topologyPreserve=TRUE)
+
+    ## Get extent for cropping
+    limits <- extent(Hispaniola)
+
+    ## Convert `occs` object to SpatialPointsDataFrame
+    occs.spdf <- SpatialPointsDataFrame(occs[,c("longitude", "latitude")], occs[,c(1, 4:ncol(occs))])
+    ## Crop it!
+    occs.spdf <- raster::crop(occs.spdf, limits)
+
+    ## Convert back to dataframe --- Probably a better way to do this, but I couldn't think of one or find an alternative
+    occs <- as_tibble(cbind(occs.spdf@data[,1], occs.spdf@coords, occs.spdf@data[,2:ncol(occs.spdf@data)]))
+
+# There are still some pesky ocean-dwelling anoles, but those will get cleaned up when we split this dataset into different lineages 
+write_csv(occs, "data/occurrences/filtered_distichus_occurrences.csv")
+
+################################################################################################
+### Split occurrences by lineage
+################################################################################################
+
+# Results from population structure and phylogenetic analyses suggest there are ~7 lineages on mainland Hispaniola: 
+# (1) A. d. dominicensis II and (2) A. dominicensis I & IV (see Geneva et al. 2015), (3) A. d. ignigularis, 
+# (4) A. d. properus, (5) A. d. ravitergum, (6) A. d. favillarum, 
+# and (7) the Tiburón peninsula endemic subspecies (A. d. aurifer, A. d. suppar, A. d. vinosus) and A. d. dominicensis III.
+# I will fit ENMs for each of these and test if they are significantly different from each other and sites chosen at random.
+
+occs <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
+
+    # For filtering occurrences based on the geographic ranges of these lineages, make all of the filtered occurrences
+    # a SpatialPoints object
+    occ_pts <- sp::SpatialPoints(occs[,2:3])
+    # Load population genomic sampling 
+    popmap <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/info/distichus-popmap-master.tsv", col_names = TRUE)
+
+# (1) A. d. dominicensis II
+    dom_2 <- popmap[popmap$Taxon=="dom2" | popmap$Taxon=="dom12", ]
+    dom_2 <- sp::SpatialPointsDataFrame(coords = dom_2[, c("Longitude", "Latitude")], data = dom_2)
+
+    dom_2_occs <- raster::intersect(occ_pts, dom_2@coords)
+    dom_2_occs <- occs %>% filter(longitude %in% dom_2_occs@coords[, 1]) %>%
+        filter(latitude %in% dom_2_occs@coords[, 2])
+
+    dom_2_occs <- dplyr::anti_join(dom_2_occs, dom_1_4_occs,  by=c("latitude","longitude")) %>% 
+        anti_join(ignig_occs, by=c("latitude","longitude")) %>%
+        filter(latitude > 19.19 ) %>% 
+        filter(longitude < (-69.68)) # exclude overlap with A. d. ignigularis on Samaná peninsula
+    
+    dom_2_occs$lineage <- "A_d_dominicensis_2"
+
+# (2) A. d. dominicensis I and IV
+    dom_1_4 <- popmap[popmap$Taxon=="dom1" | popmap$Taxon=="dom4", ]
+    dom_1_4 <- sp::SpatialPointsDataFrame(coords = dom_1_4[, c("Longitude", "Latitude")], data = dom_1_4)
+
+    dom_1_4_occs <- raster::intersect(occ_pts, dom_1_4@coords)
+    dom_1_4_occs <- occs %>% 
+        filter(longitude %in% dom_1_4_occs@coords[, 1]) %>%
+        filter(latitude %in% dom_1_4_occs@coords[, 2])
+    
+    dom_1_4_occs <- as_tibble(rbind(dom_1_4_occs, 
+        occs[occs$longitude<(-71.2) & occs$latitude>19 & occs$latitude < 19.9,])) %>% 
+        anti_join(dom_2_occs,  by=c("latitude","longitude")) 
+
+    # Exclude an overlapping observation with A. d. dominicensis II    
+    dom_1_4_occs <- dom_1_4_occs[order(dom_1_4_occs$latitude, decreasing = T),] %>% slice(-1)
+
+    dom_1_4_occs$lineage <- "A_d_dominicensis_1_4"
+
+# (3) A. d. ignigularis
+    ignig <- popmap[popmap$Taxon=="ignigularis", ]
+    ignig <- sp::SpatialPointsDataFrame(coords = ignig[, c("Longitude", "Latitude")], data = ignig)
+
+    ignig_occs <- raster::intersect(occ_pts, ignig@coords)
+    ignig_occs <- occs %>% filter(longitude %in% ignig_occs@coords[, 1]) %>%
+        filter(latitude %in% ignig_occs@coords[, 2])
+
+    ignig_occs <- ignig_occs[!grepl(paste(c("properus", "(?i)ravitergum", "(?i)dominicensis"), 
+        collapse = "|"), ignig_occs$name),] %>% 
+        anti_join(rav_occs, by=c("latitude","longitude"))
+
+    ignig_occs$lineage <- "A_d_ignigularis"   
+
+# (4) A. d. properus
+    prop <- popmap[popmap$Taxon=="properus", ]
+    prop <- sp::SpatialPointsDataFrame(coords = prop[, c("Longitude", "Latitude")], data = prop)
+
+    prop_occs <- raster::intersect(occ_pts, prop@coords)
+    prop_occs <- occs %>% filter(longitude %in% prop_occs@coords[, 1]) %>%
+        filter(latitude %in% prop_occs@coords[, 2])
+
+    prop_occs <- prop_occs[!grepl("ignigularis", prop_occs$name),]
+
+    prop_occs$lineage <- "A_d_properus"
+
+# (5) A. d. ravitergum
+    rav <- popmap[popmap$Taxon=="ravitergum", ]
+    rav <- sp::SpatialPointsDataFrame(coords = rav[, c("Longitude", "Latitude")], data = rav)
+
+    rav_occs <- raster::intersect(occ_pts, rav@coords)
+    rav_occs <- occs %>% filter(longitude %in% rav_occs@coords[, 1]) %>% 
+        filter(latitude %in% rav_occs@coords[, 2])
+
+    rav_occs <- rav_occs[!grepl("ignigularis", rav_occs$name),]
+
+    rav_occs$lineage <- "A_d_ravitergum"
+
+# (6) A. d. favillarum
+    fav <- popmap[popmap$Taxon=="favillarum", ]
+    fav <- fav[fav$Locality!="373", ] # Drop samples that cluster with ravitergum
+    fav <- sp::SpatialPointsDataFrame(coords = fav[, c("Longitude", "Latitude")], data = fav)
+
+    fav_occs <- raster::intersect(occ_pts, fav@coords)
+    fav_occs <- occs %>% filter(longitude %in% fav_occs@coords[, 1]) %>% 
+        filter(latitude %in% fav_occs@coords[, 2])
+
+    fav_occs$lineage <- "A_d_favillarum"
+
+# (7) Tiburón peninsula endemic subspecies (A. d. aurifer, A. d. suppar, A. d. vinosus) and A. d. dominicensis III
+    tiburon <- popmap[popmap$Taxon=="dom3" | popmap$Taxon=="aurifer" | popmap$Taxon=="suppar" | popmap$Taxon=="vinosus", ]
+    tiburon <- sp::SpatialPointsDataFrame(coords = tiburon[, c("Longitude", "Latitude")], data = tiburon)
+
+    tiburon_occs <- raster::intersect(occ_pts, tiburon@coords)
+    tiburon_occs <- occs %>% filter(longitude %in% tiburon_occs@coords[, 1]) %>% 
+        filter(latitude %in% tiburon_occs@coords[, 2])
+
+    tiburon_occs <- tiburon_occs[!grepl(paste(c("patruelis", "juliae", "dolichocephalus"), collapse = "|"), tiburon_occs$name),]
+
+    tiburon_occs$lineage <- "Tiburon_A_distichus"
+
+################################################################################################
+### Thin occurrences
+################################################################################################
+
+# Thin occurrences every 10 kilometers for all lineages
+
+## Make a list of dataframes to be thinned
+occs_list <- lapply(ls(pattern = "_occs"), get)
+## Assign names to directories that will hold thinned data
+names(occs_list) <- c("dom_1_4", "dom_2", "fav", "ignig", "prop", "rav", "tiburon")
+
+# Create directories and thin by 10 km
+lapply(seq_along(occs_list), 
+    function(x){
+        # Create directory for each lineage 
+        dir.create(paste0("enm/thinned-datasets/", names(occs_list[x])))
+
+        # Due to the restricted range of A. d. favillarum, thin it by a smaller distance between localities 
+        if(names(occs_list[x])=="fav"){
+            # Thin localities by 2 km and write thinned dataset to file
+            spThin::thin(loc.data = occs_list[[x]],lat.col = "latitude",long.col = "longitude", spec.col = "lineage",
+                thin.par = 2, reps = 10, write.files = TRUE, max.files = 1,
+                out.dir = paste0("enm/thinned-datasets/", names(occs_list[x])), 
+                out.base = "locs", write.log.file = FALSE, verbose = TRUE)
+
+        } else {
+            # Thin localities by 10 km and write thinned dataset to file
+            spThin::thin(loc.data = occs_list[[x]],lat.col = "latitude",long.col = "longitude", spec.col = "lineage",
+                thin.par = 10, reps = 10, write.files = TRUE, max.files = 1,
+                out.dir = paste0("enm/thinned-datasets/", names(occs_list[x])), 
+                out.base = "locs", write.log.file = FALSE, verbose = TRUE)
+        }
+
+    }
+)
+
+# After spatially thinning occurrence records, subset into sets of 75% and 25% for training and testing
+
+## load thinned datasets and create folders to hold testing and training data
+for(i in names(occs_list)){
+    # Read in thinned dataset
+    all <- read_csv(file = paste0("enm/thinned-datasets/", i, "/locs_thin1.csv"))
+    assign(paste0(i, "_occ_thinned"), all)
+
+    all$check <- paste(all$longitude, all$latitude, sep = "_")
+    train <- all[sample(nrow(all), round((length(all$lineage)/4)*3)),]
+    test <- all[!all$check %in% train$check, ]
+
+    all$check <- NULL
+    train$check <- NULL
+    test$check <- NULL
+
+    # Create directory for kuenm 
+    dir.create(paste0(working_dir, "/enm/kuenm-analysis/", i))
+
+    write_csv(all, paste0(working_dir, "/enm/kuenm-analysis/", i, "/locs_joint.csv"))
+    write_csv(train, paste0(working_dir, "/enm/kuenm-analysis/", i, "/locs_train.csv"))
+    write_csv(test, paste0(working_dir, "/enm/kuenm-analysis/", i, "/locs_test.csv"))
+}
+
+################################################################################################
+### Create M
+################################################################################################
+
+# Define function `create_M`
+    ## Takes two inputs: a dataframe with cleaned records for your taxon of choice and
+    ## the taxon's name 
+create_M <- function(occ, taxon) {
+    occ_sp <- SpatialPointsDataFrame(coords=occ[,2:3], data=occ, proj4string=WGS84)
+
+    ## project points using their centroids as a reference
+    centroid <- gCentroid(occ_sp, byid = FALSE)
+    AEQD <- CRS(paste("+proj=aeqd +lat_0=", centroid@coords[2], " +lon_0=", centroid@coords[1],
+                  " +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs", sep = ""))
+    
+    occ_proj <- spTransform(occ_sp, AEQD)
+
+    ## create a buffer based on 50 km distance 
+    buff_area <- gBuffer(occ_proj, width = 50000, quadsegs = 30)
+    buff_area <- disaggregate(buff_area)
+
+    ## reproject buffered area
+    buff_area <- spTransform(buff_area, WGS84)
+
+    ## make spatialpolygondataframe
+    df <- data.frame(species = rep(taxon, length(buff_area)))
+    buff_area <- SpatialPolygonsDataFrame(buff_area, data = df, match.ID = FALSE)
+
+    ## write area out as a shapefile
+    shp_dir <- paste0(M_dir, taxon, "-calibration-area")
+    dir.create(shp_dir)
+    writeOGR(buff_area, shp_dir, "M", driver = "ESRI Shapefile")
+}
+
+
+M_dir <- "enm/calibration-areas/"
+WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+create_M(dom_1_4_occ_thinned, "dominicensis_1_4")
+create_M(dom_2_occ_thinned, "dominicensis_2")
+create_M(fav_occ_thinned, "favillarum")
+create_M(tiburon_occ_thinned, "Tiburón_subspecies")
+create_M(ignig_occ_thinned, "ignigularis")
+create_M(prop_occ_thinned, "properus")
+create_M(rav_occ_thinned, "ravitergum")
+
+# Load bioclimatic variables
+chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
+modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
+## Raster stacks have different extents
+        extent(chelsa_clim)
+        # class      : Extent 
+        # xmin       : -76.00014 
+        # xmax       : -67.00014 
+        # ymin       : 16.99986 
+        # ymax       : 20.99986 
+        extent(modis_vi)
+        # class      : Extent 
+        # xmin       : -74.81667 
+        # xmax       : -68.16667 
+        # ymin       : 17.4 
+        # ymax       : 20.81667 
+    ## Since the extent of modis_vi fits within chelsa_clim's extent, let's
+    ## crop chelsa_clim to make it the same for both
+    chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
+    chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
+
+## Now, load elevational data that has already been adjusted to the MODIS variable extent
+elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
+
+env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names=TRUE)
+
+# Now, mask rasters by 'M' for each lineage
+dirs <- list.files("enm/calibration-areas/")
+
+for (dir in dirs){
+    ## provide whole path name to redefine "dir"
+    dir <- paste0("enm/calibration-areas/", dir, "/")
+
+    M <- readOGR(dir, layer = "M")
+
+    varsm <- mask(crop(env, M), M)
+
+    lapply(names(varsm), function(x) {
+        writeRaster(varsm[[x]], paste0(dir,x,".asc"), overwrite = TRUE)
+    })
+}
+
+```
+
+# The below code is meant to be run on an HPC and fits ENMs with MaxEnt implemented in kuenm.
+``` {r}
+
+
+
+```
