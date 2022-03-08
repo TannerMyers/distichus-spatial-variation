@@ -6,7 +6,6 @@ writing/
 *.pdf
 .Rhistory
 complete-data.csv
-World_Countries__Generalized_*
 distichus-spatial.code-workspace
 scripts/templates/
 scripts/old
