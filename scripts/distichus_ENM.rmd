@@ -312,13 +312,13 @@ create_M <- function(occ, taxon) {
 M_dir <- "enm/calibration-areas/"
 WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
 
-create_M(dom_1_4_occ_thinned, "dominicensis_1_4")
-create_M(dom_2_occ_thinned, "dominicensis_2")
-create_M(fav_occ_thinned, "favillarum")
-create_M(tiburon_occ_thinned, "Tiburón_subspecies")
-create_M(ignig_occ_thinned, "ignigularis")
-create_M(prop_occ_thinned, "properus")
-create_M(rav_occ_thinned, "ravitergum")
+create_M(dom_1_4_occ_thinned, "dom_1_4")
+create_M(dom_2_occ_thinned, "dom_2")
+create_M(fav_occ_thinned, "fav")
+create_M(tiburon_occ_thinned, "tiburon")
+create_M(ignig_occ_thinned, "ignig")
+create_M(prop_occ_thinned, "prop")
+create_M(rav_occ_thinned, "rav")
 
 # Load bioclimatic variables
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
@@ -360,8 +360,8 @@ dir.create("enm/PCA_variables")
 
 for (dir in dirs){
     ## Name directory with variables to be combined in distinct sets
-    var_folder <- paste0("enm/calibration-areas/", dir) 
-    out_folder <- paste0("enm/PCA_variables/", dir)
+    var_dir <- paste0("enm/calibration-areas/", dir) 
+    out_dir <- paste0("enm/PCA_variables/", dir)
     in_format <- "ascii" 
     out_format <- "ascii"
     scalev <- TRUE
@@ -369,15 +369,31 @@ for (dir in dirs){
     n_pcs <- 6 # may vary this
 
     ## Create subdirectories for each lineage 
-    dir.create(out_folder)
+    dir.create(out_dir)
 
-    pcs <- kuenm_rpca(variables = var_folder, in.format = in_format, var.scale = scalev, 
-           write.result = writer, out.format = out_format, out.dir = out_folder,
-           n.pcs = n_pcs)
+    pcs <- kuenm_rpca(variables = var_dir, in.format = in_format, var.scale = scalev, 
+           write.result = writer, out.format = out_format, out.dir = out_dir,
+           n.pcs = n_pcs) 
+
+    # Now that principal component rasters have been written, move to lineage-specific directories
+    # where kuenm analyses will be performed. 
+
+    M_dir <- paste0("enm/kuenm-analysis/", dir, "/M_variables") 
+    dir.create(M_dir)
+
+    for (i in 1:3){
+        in_dir <- paste0(M_dir, "/Set_", i)
+        dir.create(in_dir)
+        
+        pcnums <- 1:(dim(pcs[[3]])[3] - i + 1)
+        writeRaster(pcs[[3]][[pcnums]], filename = paste0(in_dir, "/pc.asc"), format = "ascii",
+              bylayer = TRUE, suffix = pcnums)
+    }       
 }
+
 ```
 
-# The below code is meant to be run on an HPC and fits ENMs with MaxEnt implemented in kuenm.
+ The below code is meant to be run on an HPC and fits ENMs with MaxEnt implemented in kuenm.
 ``` {r}
 
 
