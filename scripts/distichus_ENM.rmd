@@ -15,6 +15,7 @@ library(raster)
 library(rgdal)
 library(rgeos)
 library(spThin)
+library(kuenm)
 
 # Designate working directory for ENMs
 working_dir <- getwd()
