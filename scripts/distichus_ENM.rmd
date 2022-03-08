@@ -3,6 +3,8 @@
 ## Authors: Tanner C. Myers, Pietro L. H. de Mello, Paul M. Hime, and Richard E. Glor
 
 ``` {r}
+
+# Load packages
 library(tidyverse)
 library(spocc)
 library(ggmap)
@@ -14,11 +16,13 @@ library(rgdal)
 library(rgeos)
 library(spThin)
 
+# Designate working directory for ENMs
 working_dir <- getwd()
 setwd(working_dir)
 
-M_dir <- paste0(working_dir, "/data/occurrences/") # Add where you want unfiltered occurrences to go 
-dir.create(M_dir)
+# Create directory where you want unfiltered occurrences to go 
+occ_dir <- paste0(working_dir, "/data/occurrences/")
+dir.create(occ_dir)
 
 ################################################################################################
 ### Occurence download & curation 
@@ -96,7 +100,7 @@ occs <- occs[!duplicated(paste(occs$longitude, occs$latitude)), ]
     occs <- as_tibble(cbind(occs.spdf@data[,1], occs.spdf@coords, occs.spdf@data[,2:ncol(occs.spdf@data)]))
 
 # There are still some pesky ocean-dwelling anoles, but those will get cleaned up when we split this dataset into different lineages 
-write_csv(occs, "data/occurrences/filtered_distichus_occurrences.csv")
+write_csv(occs, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
 
 ################################################################################################
 ### Split occurrences by lineage
@@ -108,7 +112,7 @@ write_csv(occs, "data/occurrences/filtered_distichus_occurrences.csv")
 # and (7) the Tiburón peninsula endemic subspecies (A. d. aurifer, A. d. suppar, A. d. vinosus) and A. d. dominicensis III.
 # I will fit ENMs for each of these and test if they are significantly different from each other and sites chosen at random.
 
-occs <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
+occs <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
 
     # For filtering occurrences based on the geographic ranges of these lineages, make all of the filtered occurrences
     # a SpatialPoints object
@@ -320,20 +324,7 @@ create_M(rav_occ_thinned, "ravitergum")
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
 modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
 ## Raster stacks have different extents
-        extent(chelsa_clim)
-        # class      : Extent 
-        # xmin       : -76.00014 
-        # xmax       : -67.00014 
-        # ymin       : 16.99986 
-        # ymax       : 20.99986 
-        extent(modis_vi)
-        # class      : Extent 
-        # xmin       : -74.81667 
-        # xmax       : -68.16667 
-        # ymin       : 17.4 
-        # ymax       : 20.81667 
-    ## Since the extent of modis_vi fits within chelsa_clim's extent, let's
-    ## crop chelsa_clim to make it the same for both
+    ## Since the extent of modis_vi fits within chelsa_clim's extent, crop chelsa_clim
     chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
     chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
 
@@ -346,18 +337,44 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names=TRUE)
 dirs <- list.files("enm/calibration-areas/")
 
 for (dir in dirs){
-    ## provide whole path name to redefine "dir"
+    ## Provide whole path name to redefine "dir"
     dir <- paste0("enm/calibration-areas/", dir, "/")
-
+    ## Load shapefile to be used for masking
     M <- readOGR(dir, layer = "M")
-
+    ## Crop environmental variable rasters by shapefiles
     varsm <- mask(crop(env, M), M)
 
-    lapply(names(varsm), function(x) {
-        writeRaster(varsm[[x]], paste0(dir,x,".asc"), overwrite = TRUE)
-    })
+    ## Write masked rasters to files
+        lapply(names(varsm), function(x) {
+            writeRaster(varsm[[x]], paste0(dir,x,".asc"), overwrite = TRUE)
+            }
+        )
 }
 
+################################################################################################
+### Perform principal component analysis on environmental variables
+################################################################################################
+
+# Create directory to output principal component rasters
+dir.create("enm/PCA_variables")
+
+for (dir in dirs){
+    ## Name directory with variables to be combined in distinct sets
+    var_folder <- paste0("enm/calibration-areas/", dir) 
+    out_folder <- paste0("enm/PCA_variables/", dir)
+    in_format <- "ascii" 
+    out_format <- "ascii"
+    scalev <- TRUE
+    writer <- TRUE # save results
+    n_pcs <- 6 # may vary this
+
+    ## Create subdirectories for each lineage 
+    dir.create(out_folder)
+
+    pcs <- kuenm_rpca(variables = var_folder, in.format = in_format, var.scale = scalev, 
+           write.result = writer, out.format = out_format, out.dir = out_folder,
+           n.pcs = n_pcs)
+}
 ```
 
 # The below code is meant to be run on an HPC and fits ENMs with MaxEnt implemented in kuenm.
