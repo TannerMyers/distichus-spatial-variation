@@ -400,7 +400,7 @@ for (dir in dirs){
 library(kuenm)
 
 # Set working directory to directory containing occurence records and input environmental variables
-working_dir <- "/home/tcm0036/distichus-spatial-variation/enm"
+working_dir <- getwd()
 setwd(working_dir)
 
 # Assign variables needed for generating candidate models
