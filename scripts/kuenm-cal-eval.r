@@ -1,8 +1,13 @@
+library(tidyverse)
+library(raster)
 library(kuenm)
 
 # Set working directory to directory containing occurence records and input environmental variables
 working_dir <- getwd()
 setwd(working_dir)
+
+# Load total set of thinned occurrences
+occ <- read_csv("locs_joint.csv")
 
 # Load environmental variable PC layers as Raster stack
 variables <- raster::stack(list.files(path = "M_variables/Set_1/", pattern = ".asc", full.names = TRUE))
@@ -19,9 +24,9 @@ prepare_swd(occ = occ, species = "lineage", longitude="longitude", latitude="lat
             name.occ="occurrences", back.folder="M_2", set.seed = 1)
 
 # Assign variables needed for generating candidate models
-occ_joint <- "locs_joint.csv"
-occ_tra <- "locs_train.csv"
-occ_test <- "locs_test.csv"
+occ_joint <- "occurrences_joint.csv"
+occ_tra <- "occurrences_train.csv"
+occ_test <- "occurrences_test.csv"
 M_var_dir <- "M_variables"
 batch_cal <- "Candidate_models"
 out_dir <- "Candidate_Models"
@@ -36,7 +41,6 @@ kuenm_cal(occ.joint = occ_joint, occ.tra = occ_tra, M.var.dir = M_var_dir, batch
           out.dir = out_dir, reg.mult = reg_mult, f.clas = f_clas, args = args,
           maxent.path = maxent_path, wait = wait, run = run)
 
-occ_test <- "species/locs_test.csv" ## needs updating
 out_eval <- "Calibration_results"
 threshold <- 5
 rand_percent <- 50
