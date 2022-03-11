@@ -4,6 +4,20 @@ library(kuenm)
 working_dir <- getwd()
 setwd(working_dir)
 
+# Load environmental variable PC layers as Raster stack
+variables <- raster::stack(list.files(path = "M_variables/Set_1/", pattern = ".asc", full.names = TRUE))
+
+# Define sets of variables to be considered for ENM generation
+set <- list(Set_1=c(names(variables)), 
+            Set_2=c("pc_1", "pc_2", "pc_3", "pc_4", "pc_5"), 
+            Set_3=c("pc_1", "pc_2", "pc_3", "pc_4"))
+
+# `prepare_swd` takes occurrences and raster layers and extracts values for both the occurrence coordinates as well
+# as background points that are used as input for Maxent in the SWD format
+prepare_swd(occ = occ, species = "lineage", longitude="longitude", latitude="latitude", data.split.method = "random", 
+            train.proportion = 0.75, raster.layers=variables, sample.size = 30000, var.sets = set, save = T, 
+            name.occ="occurrences", back.folder="M_2", set.seed = 1)
+
 # Assign variables needed for generating candidate models
 occ_joint <- "locs_joint.csv"
 occ_tra <- "locs_train.csv"
