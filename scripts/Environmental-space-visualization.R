@@ -14,7 +14,7 @@
 # sources of bioclimatic variables (WorldClim, MERRAClim, and CHELSA).
 
 # Load packages
-
+library(tidyverse)
 
 # Directories
 working_dir <- getwd()
@@ -80,11 +80,11 @@ leg.txt <- c(expression(italic("ignigularis")),
              expression(italic("suppar")),
              expression(italic("vinosus")))
 
-> pdf("CHELSA_environmental_biplot.pdf")
-> plot(chelsa_bio12_points[,3] ~ chelsa_bio1_points[,3], xlab="BIO1", ylab="BIO12", main="Environmental Space (CHELSA)")
-> points(df$CHELSA_bio10_12 ~ df$CHELSA_bio10_01, col=df$Color, pch=16, cex=1.25)
-> legend("topleft", leg.txt, col=unique(df$Color), pch=16, cex=1)
-> dev.off()
+pdf("CHELSA_environmental_biplot.pdf")
+plot(chelsa_bio12_points[,3] ~ chelsa_bio1_points[,3], xlab="BIO1", ylab="BIO12", main="Environmental Space (CHELSA)")
+     points(df$CHELSA_bio10_12 ~ df$CHELSA_bio10_01, col=df$Color, pch=16, cex=1.25)
+     legend("topleft", leg.txt, col=unique(df$Color), pch=16, cex=1)
+     dev.off()
 
 pdf("MERRAclim-environmental-biplot.pdf")
 #hgd()

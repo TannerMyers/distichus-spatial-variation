@@ -65,7 +65,7 @@ usdm::vifcor(x=variables_values, th=0.85) # 0.85 is linear correlation
   ## `vifstep` function of the `usdm` package estimates VIFs for a Raster Stack
   ## all at once, excluding the one with the highest VIF, repeating until no variables
   ## with VIF higher than th remains
-usdm::vifstep(x=variables_values, th=10) # 10 is the threshold value of VIF 
+usdm::vifstep(x=variables_values, th=10) # 10 is the threshold value of VIF
 
 # Create a directory to contain non-correlated variables
 dir.create("enm/non-correlated-variables")
@@ -79,7 +79,7 @@ selected_variables <- variables[[selected]]
 variable_names <- paste0("enm/non-correlated-variables/", selected, ".asc")
 
 for (i in 1:nlayers(selected_variables)) {
-  writeRaster(selected_variables[[i]], filename= variable_names[i], format="ascii",)
+  writeRaster(selected_variables[[i]], filename= variable_names[i], format="ascii")
 }
 
 # Now, output combinations of selected variables for Maxent ENM estimation with `kuenm` package

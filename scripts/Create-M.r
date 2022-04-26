@@ -35,7 +35,7 @@ setwd(working_dir)
 output_dir <- "enm/calibration-areas/"
 dir.create(output_dir)
 
-## considering earth's distortion. 
+## considering earth's distortion.
 WGS84 <- CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
 
 # Define function `create_M`
@@ -139,7 +139,7 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names=TRUE)
 dirs <- list.files("enm/calibration-areas/")
 for (dir in dirs){
     ## provide whole path name to redefine "dir"
-    dir <- paste0("enm/calibration-areas/",dir,"/")
+    dir <- paste0("enm/calibration-areas/", dir, "/")
 
     M <- readOGR(dir, layer = "M")
 

@@ -53,7 +53,7 @@ head(gbif_occs)
 ## write gbif_occs to file to create a derived dataset – this gives us a citable DOI for the GBIF data we're using
 write_csv(gbif_occs, "data/GBIF/Anolis_distichus_GBIF_download.csv")
 
-sp_search <- occ_search(taxonKey = ad$gbif$Anolis_distichus$taxonKey[1])
+sp_search <- occ_search(taxonKey = ad$gbif$data$Anolis_distichus$taxonKey[1])
 cit <- gbif_citation(sp_search)
 sink('data/GBIF/gbif_ref.txt')
 sapply(cit, print)
@@ -77,17 +77,18 @@ ggplot() +
     coord_fixed(xlim=c(-75,-67.5), ylim=c(17,20), ratio=1.3) + theme_nothing()
 
 # Write csv containing occurrence data for Anolis distichus 
-write.csv(occs, "data/GBIF/occurrences_distichus_GBIF.csv", row.names = FALSE) # Maybe split script here. There's a lot of code after this and there's no need to repeat or alter the steps before
+write.csv(occs, "data/GBIF/unfiltered_GBIF_distichus_occurrences.csv", row.names = FALSE) # Maybe split script here. There's a lot of code after this and there's no need to repeat or alter the steps before
 
 #---------------------------------------------------------------------------------
 
 #--------------------- Data cleaning ---------------------------------------------
-occs <- read.csv("data/GBIF/occurrences_distichus_GBIF.csv", header = TRUE)
+occs <- read.csv("data/GBIF/unfiltered_GBIF_distichus_occurrences.csv", header = TRUE)
 colnames(occs)
 
 ## subset columns of interest
 occ <- occs[, c("scientificName", "longitude", "latitude", "year")]
-occ <- na.omit(occ) # exclude NAs here after reducing number of fields in dataframe
+occ <- occ[!is.na(occ$longitude) & !is.na(occ$latitude),]
+#occ <- na.omit(occ) # exclude NAs here after reducing number of fields in dataframe
 
 ## excluding 0, 0 coordinates 
 occ <- occ[occ$longitude != 0 & occ$latitude != 0, ]
@@ -95,12 +96,10 @@ occ <- occ[occ$longitude != 0 & occ$latitude != 0, ]
 ## excluding duplicates
 occ <- occ[!duplicated(paste(occ$longitude, occ$latitude)), ]
 
-hgd()
-hgd_browse()
 maps::map()
 points(occ[, 2:3], col = "red", pch = 19)
-axis(side = 2)
-axis(side =1)
+  axis(side = 2)
+  axis(side =1)
 
 # excluding records outside Caribbean
 occ <- occ[occ$longitude < 0,]
@@ -117,7 +116,7 @@ points(occ[, 2:3], col = "red", pch = 19)
 axis(side=2)
 axis(side=1)
 
-write.csv(occ, paste0(output_dir, "A_distichus_clean.csv"), row.names=FALSE)
+write.csv(occ, paste0(output_dir, "A_distichus_cleaned.csv"), row.names=FALSE)
 
 #-------------------------------------------------------------------------------
 
@@ -163,8 +162,8 @@ maps::map(xlim = range(occ$longitude), ylim = range(occ$latitude), interior =TRU
 points(occ[occ$scientificName==c("Anolis distichus favillarum Schwartz, 1968"),2:3], col = "red", pch =19)
 points(occ[,2:3], col = "blue", pch =1) # check if other observations are in focal area without label
 
-occ_fav <- occ[occ$latitude<=18.21,]
-occ_fav <- occ_fav[occ_fav$latitude>=17.96,]
+occ_fav <- occ[occ$latitude <= 18.21,]
+occ_fav <- occ_fav[occ_fav$latitude >= 17.96,]
 occ_fav <- occ_fav[occ_fav$longitude<=(-71.07444),]
 occ_fav <- occ_fav[occ_fav$longitude>=(-71.29306),] # done
 
@@ -237,7 +236,7 @@ occ_dom <- occ_dom[occ_dom$longitude<=(-69.62),]
 occ_dom <- dplyr::anti_join(occ_dom, occ_ig, by=c("latitude","longitude")) # eliminate overlapping ignigularis samples
 
 write.csv(occ_fav, paste0(output_dir,"A_d_favillarum.csv"), row.names=FALSE)
-write.csv(occ_dom, paste0(output_dir,"A_d_dominicensis_clean.csv"), row.names=FALSE)
+write.csv(occ_dom, paste0(output_dir,"A_d_dominicensis.csv"), row.names=FALSE)
 write.csv(occ_haiti, paste0(output_dir,"A_distichus_Tiburon.csv"), row.names=FALSE)
 write.csv(occ_prop, paste0(output_dir,"A_d_properus.csv"), row.names=FALSE)
 write.csv(occ_rav, paste0(output_dir,"A_d_ravitergum.csv"), row.names=FALSE)
@@ -252,7 +251,7 @@ occ_ig_thin <- thin_data(occ_ig, "longitude", "latitude", thin_distance = 10,
                     save =TRUE, name = "enm/thinned-datasets/A_d_ignigularis_10km")
 
 maps::map(xlim = range(occ_thin$longitude), ylim = range(occ_thin$latitude), interior =TRUE)
-points(occ_ig_thin[,2:3], col = "orange", pch =19)
+points(occ_ig_thin[,2:3], col = "orangered", pch =19)
 
 ## spatially thin A. d. ravitergum occurrences by 10 km
 occ_rav_thin <- thin_data(occ_rav, "longitude", "latitude", thin_distance = 10,
