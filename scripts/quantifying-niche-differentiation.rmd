@@ -1,0 +1,574 @@
+# This script includes workflow for quantifying differences in niche between lineages of
+# the Anolis distichus species group.
+## Authors: Tanner C. Myers, Pietro L. H. de Mello, Paul M. Hime, and Richard E. Glor
+
+``` {r}
+# Load libraries
+library(spocc)
+library(sp)
+library(raster)
+library(rgeos)
+library(sf)
+library(ENMTools)
+library(usdm)
+library(RStoolbox)
+library(tidyverse)
+
+rm(list = ls())
+
+# Set working directory
+working_dir <- getwd()
+setwd(working_dir)
+```
+
+```{r}
+# Get occurrences for Anolis distichus and Anolis brevirostris from GBIF, VertNet, and iNaturalist
+ad <- spocc::occ(query = c("Anolis distichus", "Anolis dominicensis",
+    "Anolis ignigularis", "Anolis properus", "Anolis favillarum",
+    "Anolis ravitergum", "Anolis vinosus", "Anolis aurifer", "Anolis suppar"),
+    from = c("vertnet", "gbif", "inat"),
+    limit = 100000)
+
+ab <- spocc::occ(query = c("Anolis brevirostris"), 
+    from = c("vertnet", "gbif", "inat"), 
+    limit = 100000)
+
+## Get list of dataframes containing occurrences under different taxon labels from GBIF 
+    gbif_occs.ad <- ad$gbif$data
+    gbif_occs.ab <- ab$gbif$data
+    # Combine all dataframes into one large dataframe
+    gbif_occs.ad <- bind_rows(gbif_occs.ad, .id = "column_label")
+    gbif_occs.ab <- bind_rows(gbif_occs.ab, .id = "column_label") 
+
+    # Repeat for iNaturalist and VertNet occurrences
+    inat_occs.ad <- ad$inat$data
+    inat_occs.ad <- bind_rows(inat_occs.ad, .id = "column_label")
+    inat_occs.ab <- ab$inat$data
+    inat_occs.ab <- bind_rows(inat_occs.ab, .id = "column_label")
+    vertnet_occs.ad <- ad$vertnet$data
+    vertnet_occs.ad <- bind_rows(vertnet_occs.ad, .id = "column_label")
+    vertnet_occs.ab <- ab$vertnet$data
+    vertnet_occs.ab <- bind_rows(vertnet_occs.ab, .id = "column_label")
+
+    # Write unfiltered occurrences from the databases to files
+    write_csv(gbif_occs.ad, "Anolis_distichus_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs.ad, "Anolis_distichus_VertNet_occurrences_download.csv")
+    write_csv(inat_occs.ad, "Anolis_distichus_iNat_occurrences_download.csv")
+    write_csv(gbif_occs.ab, "Anolis_brevirostris_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs.ab, "Anolis_brevirostris_VertNet_occurrences_download.csv")
+    write_csv(inat_occs.ab, "Anolis_brevirostris_iNat_occurrences_download.csv")
+
+## Create master files of occurrences
+    colnames(gbif_occs.ad)
+    # This will work for both species' sets of occurrences
+    columns <- c("name", "longitude", "latitude", "year", "month", "day")
+
+    occs.ad <- as_tibble(rbind(gbif_occs.ad[, columns], vertnet_occs.ad[, columns]))
+    occs.ab <- as_tibble(rbind(gbif_occs.ab[, columns], vertnet_occs.ad[, columns])) 
+
+    # For iNaturalist occurrences only (naming conventions differ) 
+    ## First, filter out non-research grade, obscured, and private observations
+    inat_occs.ad <- inat_occs.ad[inat_occs.ad$quality_grade=="research",]
+    inat_occs.ad <- inat_occs.ad %>% filter(!geoprivacy %in% c("obscured", "private")) 
+    inat_occs.ab <- inat_occs.ab[inat_occs.ab$quality_grade=="research",]
+    inat_occs.ab <- inat_occs.ab %>% filter(!geoprivacy %in% c("obscured", "private")) 
+
+    colnames(inat_occs.ad)
+    columns2 <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
+    inat_occs_filtered.ad <- inat_occs.ad[, columns2]
+    inat_occs_filtered.ab <- inat_occs.ab[, columns2]
+    colnames(inat_occs_filtered.ad) <- columns 
+    colnames(inat_occs_filtered.ab) <- columns
+
+occs.ad <- as_tibble(rbind(occs.ad, inat_occs_filtered.ad))
+occs.ab <- as_tibble(rbind(occs.ab, inat_occs_filtered.ab)) 
+write_csv(occs.ad, "unfiltered_distichus_occurrences.csv")
+write_csv(occs.ab, "unfiltered_brevirostris_occurrences.csv")
+
+# Clean occurrence data
+
+occs.ad <- read_csv("unfiltered_distichus_occurrences.csv")
+
+## Exclude occurrences without coordinates
+occs.ad <- occs.ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
+
+## Exclude duplicate occurrences
+occs.ad <- occs.ad[!duplicated(paste(occs.ad$longitude, occs.ad$latitude)), ]
+
+# Omit samples not from Hispaniola
+    ## To do this, we will load a shapefile of the island of Hispaniola
+    DOM <- getData('GADM', country='DOM', level=0, path = "data/shape-files/", download = F)
+    HTI <- getData('GADM', country='HTI', level=0, path = "data/shape-files/", download =F)
+    row.names(DOM) <- paste("DOM", row.names(DOM), sep="_")
+    row.names(HTI) <- paste("HTI", row.names(HTI), sep="_")
+    Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
+    Hispaniola <- gSimplify(Hispaniola, tol=0.01, topologyPreserve=TRUE)
+
+    ## Get extent for cropping
+    limits <- extent(Hispaniola)
+
+    ## Convert occurrences object to SpatialPointsDataFrame
+    occs.ad.spdf <- SpatialPointsDataFrame(occs.ad[,c("longitude", "latitude")], occs.ad[,c(1, 4:ncol(occs.ad))])
+    occs.ab.spdf <- SpatialPointsDataFrame(occs.ab[,c("longitude", "latitude")], occs.ab[,c(1, 4:ncol(occs.ab))]) 
+    ## Crop it!
+    occs.ad.spdf <- raster::crop(occs.ad.spdf, limits)
+    occs.ab.spdf <- raster::crop(occs.ab.spdf, limits)
+
+    ## Convert back to dataframe --- Probably a better way to do this, but I couldn't think of one or find an alternative
+    occs.ad <- as_tibble(cbind(occs.ad.spdf@data[,1], occs.ad.spdf@coords, occs.ad.spdf@data[,2:ncol(occs.ad.spdf@data)]))
+    occs.ab <- as_tibble(cbind(occs.ab.spdf@data[,1], occs.ab.spdf@coords, occs.ab.spdf@data[,2:ncol(occs.ab.spdf@data)])) 
+
+# There are still some pesky ocean-dwelling anoles, but those will get cleaned up when we split this dataset into different lineages 
+write_csv(occs.ad, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
+write.csv(occs.ab, paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
+
+```
+
+``` {r}
+# Load environmental variables
+chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
+modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
+## Raster stacks have different extents
+    ## Since the extent of modis_vi fits within chelsa_clim's extent, crop chelsa_clim
+    chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
+    chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
+
+## Now, load elevational data that has already been adjusted to the MODIS variable extent
+elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
+
+## Merge all environmental data layers into single raster stack
+env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
+    ## Check rasters for same extent and resolution &
+    ## set values to NA if NAs present in any layer
+    env <- ENMTools::check.env(env)
+```
+
+```{r}
+set.seed(36)
+
+# Examine collinearity among environmental variables
+raster.cor.matrix(env)
+#                    SRTM_elevation_1km CHELSA_bio10_01 CHELSA_bio10_02
+# SRTM_elevation_1km         1.00000000     -0.98660927      0.34567790
+# CHELSA_bio10_01           -0.98660927      1.00000000     -0.41044841
+# CHELSA_bio10_02            0.34567790     -0.41044841      1.00000000
+# CHELSA_bio10_03            0.32141159     -0.41672358      0.90260748
+# CHELSA_bio10_04           -0.06201178      0.02643201      0.69344192
+# CHELSA_bio10_05           -0.90853132      0.90065265      0.01799635
+# CHELSA_bio10_06           -0.90242982      0.93414818     -0.70642060
+# CHELSA_bio10_07            0.29442694     -0.34608848      0.98723957
+# CHELSA_bio10_10           -0.98136720      0.99602345     -0.35583259
+# CHELSA_bio10_11           -0.97974334      0.99709812     -0.46711830
+# CHELSA_bio10_12           -0.01073041     -0.02134976     -0.01874505
+# CHELSA_bio10_13            0.08844295     -0.08886133     -0.05395935
+# CHELSA_bio10_14           -0.17264299      0.13339836     -0.19088118
+# CHELSA_bio10_15            0.22349767     -0.18610810      0.15533580
+# CHELSA_bio10_16            0.06945625     -0.06905210     -0.07749964
+# CHELSA_bio10_17           -0.16735824      0.13257580     -0.20191480
+# march_EVI_mean            -0.15064987      0.10360057     -0.37283651
+# march_NDVI_mean            0.09161111     -0.14133369     -0.26842154
+# may_EVI_mean              -0.14838673      0.10247869     -0.23557042
+# may_NDVI_mean              0.12040179     -0.16492062     -0.14840212
+#                    CHELSA_bio10_03 CHELSA_bio10_04 CHELSA_bio10_05
+# SRTM_elevation_1km      0.32141159     -0.06201178     -0.90853132
+# CHELSA_bio10_01        -0.41672358      0.02643201      0.90065265
+# CHELSA_bio10_02         0.90260748      0.69344192      0.01799635
+# CHELSA_bio10_03         1.00000000      0.42684363     -0.06291419
+# CHELSA_bio10_04         0.42684363      1.00000000      0.39960128
+# CHELSA_bio10_05        -0.06291419      0.39960128      1.00000000
+# CHELSA_bio10_06        -0.66018921     -0.26784083      0.68759519
+# CHELSA_bio10_07         0.83983529      0.78195665      0.09493438
+# CHELSA_bio10_10        -0.38942897      0.10797671      0.92765504
+# CHELSA_bio10_11        -0.45608071     -0.04679753      0.86868786
+# CHELSA_bio10_12         0.08514063     -0.16904251     -0.05091903
+# CHELSA_bio10_13        -0.02755304     -0.22067997     -0.13593000
+# CHELSA_bio10_14        -0.09831979     -0.08224437      0.05012773
+# CHELSA_bio10_15         0.10717145     -0.12734571     -0.14294651
+# CHELSA_bio10_16        -0.02134545     -0.25864913     -0.12711567
+# CHELSA_bio10_17        -0.11116233     -0.07947922      0.04669733
+# march_EVI_mean         -0.22828428     -0.27164687     -0.08132092
+# march_NDVI_mean        -0.13988110     -0.24647843     -0.29822323
+# may_EVI_mean           -0.11049585     -0.22589710     -0.02347161
+# may_NDVI_mean          -0.03984731     -0.23126482     -0.27322722
+#                    CHELSA_bio10_06 CHELSA_bio10_07 CHELSA_bio10_10
+# SRTM_elevation_1km    -0.902429821      0.29442694     -0.98136720
+# CHELSA_bio10_01        0.934148176     -0.34608848      0.99602345
+# CHELSA_bio10_02       -0.706420596      0.98723957     -0.35583259
+# CHELSA_bio10_03       -0.660189213      0.83983529     -0.38942897
+# CHELSA_bio10_04       -0.267840832      0.78195665      0.10797671
+# CHELSA_bio10_05        0.687595191      0.09493438      0.92765504
+# CHELSA_bio10_06        1.000000000     -0.65739238      0.90749454
+# CHELSA_bio10_07       -0.657392384      1.00000000     -0.28151993
+# CHELSA_bio10_10        0.907494538     -0.28151993      1.00000000
+# CHELSA_bio10_11        0.955070593     -0.40794869      0.98758324
+# CHELSA_bio10_12        0.007485914     -0.06300592     -0.03776634
+# CHELSA_bio10_13       -0.036347940     -0.09105940     -0.10563454
+# CHELSA_bio10_14        0.191609618     -0.21060889      0.11926091
+# CHELSA_bio10_15       -0.211713599      0.14194558     -0.18977555
+# CHELSA_bio10_16       -0.011310437     -0.11627043     -0.08842684
+# CHELSA_bio10_17        0.194054452     -0.21752979      0.11981229
+# march_EVI_mean         0.240411006     -0.41387499      0.06831159
+# march_NDVI_mean        0.009182303     -0.32196187     -0.17397356
+# may_EVI_mean           0.187207193     -0.28092058      0.07194102
+# may_NDVI_mean         -0.055198382     -0.20776056     -0.19466682
+#                    CHELSA_bio10_11 CHELSA_bio10_12 CHELSA_bio10_13
+# SRTM_elevation_1km    -0.979743338    -0.010730413      0.08844295
+# CHELSA_bio10_01        0.997098120    -0.021349763     -0.08886133
+# CHELSA_bio10_02       -0.467118303    -0.018745053     -0.05395935
+# CHELSA_bio10_03       -0.456080713     0.085140633     -0.02755304
+# CHELSA_bio10_04       -0.046797526    -0.169042508     -0.22067997
+# CHELSA_bio10_05        0.868687856    -0.050919030     -0.13593000
+# CHELSA_bio10_06        0.955070593     0.007485914     -0.03634794
+# CHELSA_bio10_07       -0.407948692    -0.063005917     -0.09105940
+# CHELSA_bio10_10        0.987583236    -0.037766339     -0.10563454
+# CHELSA_bio10_11        1.000000000    -0.007700765     -0.07102344
+# CHELSA_bio10_12       -0.007700765     1.000000000      0.90560553
+# CHELSA_bio10_13       -0.071023444     0.905605525      1.00000000
+# CHELSA_bio10_14        0.143042500     0.809126352      0.60392869
+# CHELSA_bio10_15       -0.182040369    -0.428812805     -0.11725626
+# CHELSA_bio10_16       -0.048500404     0.917479439      0.98675896
+# CHELSA_bio10_17        0.142543920     0.810763682      0.60157599
+# march_EVI_mean         0.124574636     0.449837999      0.32649249
+# march_NDVI_mean       -0.122191917     0.369338210      0.27962695
+# may_EVI_mean           0.118313997     0.425953064      0.34812488
+# may_NDVI_mean         -0.148584596     0.349558766      0.31281148
+#                    CHELSA_bio10_14 CHELSA_bio10_15 CHELSA_bio10_16
+# SRTM_elevation_1km     -0.17264299       0.2234977      0.06945625
+# CHELSA_bio10_01         0.13339836      -0.1861081     -0.06905210
+# CHELSA_bio10_02        -0.19088118       0.1553358     -0.07749964
+# CHELSA_bio10_03        -0.09831979       0.1071714     -0.02134545
+# CHELSA_bio10_04        -0.08224437      -0.1273457     -0.25864913
+# CHELSA_bio10_05         0.05012773      -0.1429465     -0.12711567
+# CHELSA_bio10_06         0.19160962      -0.2117136     -0.01131044
+# CHELSA_bio10_07        -0.21060889       0.1419456     -0.11627043
+# CHELSA_bio10_10         0.11926091      -0.1897756     -0.08842684
+# CHELSA_bio10_11         0.14304250      -0.1820404     -0.04850040
+# CHELSA_bio10_12         0.80912635      -0.4288128      0.91747944
+# CHELSA_bio10_13         0.60392869      -0.1172563      0.98675896
+# CHELSA_bio10_14         1.00000000      -0.8156127      0.61268550
+# CHELSA_bio10_15        -0.81561270       1.0000000     -0.12784421
+# CHELSA_bio10_16         0.61268550      -0.1278442      1.00000000
+# CHELSA_bio10_17         0.99471055      -0.8236169      0.61281425
+# march_EVI_mean          0.59928118      -0.4905316      0.31906250
+# march_NDVI_mean         0.49803890      -0.4003521      0.26675405
+# may_EVI_mean            0.45734581      -0.3130778      0.33995110
+# may_NDVI_mean           0.35613542      -0.2115356      0.29711688
+#                    CHELSA_bio10_17 march_EVI_mean march_NDVI_mean may_EVI_mean
+# SRTM_elevation_1km     -0.16735824    -0.15064987     0.091611108  -0.14838673
+# CHELSA_bio10_01         0.13257580     0.10360057    -0.141333692   0.10247869
+# CHELSA_bio10_02        -0.20191480    -0.37283651    -0.268421543  -0.23557042
+# CHELSA_bio10_03        -0.11116233    -0.22828428    -0.139881103  -0.11049585
+# CHELSA_bio10_04        -0.07947922    -0.27164687    -0.246478426  -0.22589710
+# CHELSA_bio10_05         0.04669733    -0.08132092    -0.298223228  -0.02347161
+# CHELSA_bio10_06         0.19405445     0.24041101     0.009182303   0.18720719
+# CHELSA_bio10_07        -0.21752979    -0.41387499    -0.321961873  -0.28092058
+# CHELSA_bio10_10         0.11981229     0.06831159    -0.173973562   0.07194102
+# CHELSA_bio10_11         0.14254392     0.12457464    -0.122191917   0.11831400
+# CHELSA_bio10_12         0.81076368     0.44983800     0.369338210   0.42595306
+# CHELSA_bio10_13         0.60157599     0.32649249     0.279626948   0.34812488
+# CHELSA_bio10_14         0.99471055     0.59928118     0.498038902   0.45734581
+# CHELSA_bio10_15        -0.82361687    -0.49053156    -0.400352148  -0.31307776
+# CHELSA_bio10_16         0.61281425     0.31906250     0.266754051   0.33995110
+# CHELSA_bio10_17         1.00000000     0.60373780     0.498538243   0.46168844
+# march_EVI_mean          0.60373780     1.00000000     0.914779019   0.87613606
+# march_NDVI_mean         0.49853824     0.91477902     1.000000000   0.79499799
+# may_EVI_mean            0.46168844     0.87613606     0.794997995   1.00000000
+# may_NDVI_mean           0.35737835     0.80722388     0.890563747   0.89461219
+#                    may_NDVI_mean
+# SRTM_elevation_1km    0.12040179
+# CHELSA_bio10_01      -0.16492062
+# CHELSA_bio10_02      -0.14840212
+# CHELSA_bio10_03      -0.03984731
+# CHELSA_bio10_04      -0.23126482
+# CHELSA_bio10_05      -0.27322722
+# CHELSA_bio10_06      -0.05519838
+# CHELSA_bio10_07      -0.20776056
+# CHELSA_bio10_10      -0.19466682
+# CHELSA_bio10_11      -0.14858460
+# CHELSA_bio10_12       0.34955877
+# CHELSA_bio10_13       0.31281148
+# CHELSA_bio10_14       0.35613542
+# CHELSA_bio10_15      -0.21153563
+# CHELSA_bio10_16       0.29711688
+# CHELSA_bio10_17       0.35737835
+# march_EVI_mean        0.80722388
+# march_NDVI_mean       0.89056375
+# may_EVI_mean          0.89461219
+# may_NDVI_mean         1.00000000
+
+cor <- raster.cor.plot(env)
+    cor$cor.mds.plot
+    cor$cor.heatmap
+
+# Estimate Variance Influence Factors (VIFs) for each of the predictors
+    ## `vifcor` function of the `usdm` package estimates VIFs for a Raster Stack
+    ## by finding a pair of variables with a maximum linear correlation and excludes
+    ## the one with the greater VIF until no variable with a high correlation coefficient
+    ## with other variables remains
+usdm::vifcor(x = env, th = 0.9)
+# 10 variables from the 20 input variables have collinearity problem: 
+# CHELSA_bio10_11 CHELSA_bio10_01 CHELSA_bio10_17 CHELSA_bio10_07 CHELSA_bio10_13 CHELSA_bio10_10 CHELSA_bio10_12 march_NDVI_mean CHELSA_bio10_05 CHELSA_bio10_02 
+
+# After excluding the collinear variables, the linear correlation coefficients ranges between: 
+# min correlation ( CHELSA_bio10_16 ~ CHELSA_bio10_06 ):  0.001579563 
+# max correlation ( CHELSA_bio10_06 ~ SRTM_elevation_1km ):  -0.8963377 
+
+# ---------- VIFs of the remained variables -------- 
+#             Variables        VIF
+# 1  SRTM_elevation_1km  95.313985
+# 2     CHELSA_bio10_03  16.835584
+# 3     CHELSA_bio10_04   7.427914
+# 4     CHELSA_bio10_06 146.032066
+# 5     CHELSA_bio10_14  18.329518
+# 6     CHELSA_bio10_15  10.197817
+# 7     CHELSA_bio10_16   5.651722
+# 8      march_EVI_mean   7.031069
+# 9        may_EVI_mean  10.023590
+# 10      may_NDVI_mean   7.778243
+
+    ## `vifstep` function of the `usdm` package estimates VIFs for a Raster Stack
+    ## all at once, excluding the one with the highest VIF, repeating until no variables
+    ## with VIF higher than th remains
+usdm::vifstep(x = env, th = 10)
+# 13 variables from the 20 input variables have collinearity problem: 
+ 
+# CHELSA_bio10_06 CHELSA_bio10_11 CHELSA_bio10_01 CHELSA_bio10_10 CHELSA_bio10_07 CHELSA_bio10_17 CHELSA_bio10_16 SRTM_elevation_1km CHELSA_bio10_02 march_NDVI_mean CHELSA_bio10_12 CHELSA_bio10_14 may_EVI_mean 
+
+# After excluding the collinear variables, the linear correlation coefficients ranges between: 
+# min correlation ( CHELSA_bio10_13 ~ CHELSA_bio10_03 ):  0.003461225 
+# max correlation ( may_NDVI_mean ~ march_EVI_mean ):  0.8029334 
+
+# ---------- VIFs of the remained variables -------- 
+#         Variables      VIF
+# 1 CHELSA_bio10_03 1.424511
+# 2 CHELSA_bio10_04 1.840551
+# 3 CHELSA_bio10_05 1.443032
+# 4 CHELSA_bio10_13 1.181364
+# 5 CHELSA_bio10_15 1.734771
+# 6  march_EVI_mean 5.221558
+# 7   may_NDVI_mean 4.012991
+
+# Based on these results, I am going with the following environmental variables:
+
+env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
+            "CHELSA_bio10_15", "CHELSA_bio10_16",
+            "march_EVI_mean", "may_NDVI_mean")]]
+```
+
+```{r}
+# Load ddRAD sampling spreadsheet
+ind_data <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/info/distichus-popmap-cleaned-master.tsv", col_names = TRUE)
+cluster_K9 <- read_table("../ddRADseq_Phylogeography/population-structure/snmf/sNMF_K9_ancestry_coefficients_cluster.tsv", col_names=T)
+ind_data2 <- as_tibble(cbind(ind_data, cluster_K9$cluster))
+    colnames(ind_data2)[13] <- "K9cluster"
+
+# Exclude problem specimens and irrelevant species
+ind_data2 <- ind_data2 %>% filter(Sample != "4481" & Sample != "10085" & Sample != "10086") %>% 
+    filter(!(Taxon %in% c("websteri", "marron", "caudalis", "altavelensis")))
+
+# Load filtered occurrences downloaded with `spocc` R package
+occs <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
+```
+
+```{r}
+for (k in 1:9){
+
+    df <- ind_data2[ind_data2$K9cluster == k, ]
+    assign(paste0("K_", k), df)
+
+    # Make spatial points dataframe and polygons based on genetic clusters inferred by sNMF
+    pts <- SpatialPoints(df[, c("Longitude", "Latitude")])
+    colnames(pts@coords) <- c("longitude", "latitude")
+        assign(paste0("K", k, "_pts"), pts)
+    poly <- gConvexHull(pts)
+        assign(paste0("K", k, "_poly"), poly)
+
+    # Subset occurrences that fall within spatial polygon made above
+    df2 <- occs[!is.na(over(SpatialPoints(occs[, 2:3]), poly)),]
+    # Combine total points
+    df3 <- as_tibble(rbind(pts@coords, df2[,2:3]))
+    clust <- rep(k, nrow(df3))
+    df4 <- as_tibble(cbind(df3, clust))
+        df4$clust <- as.factor(df4$clust)
+    write_delim(x = df4, file = paste0("K", k, "_total_pts.csv"), # NEEDS TESTING
+                delim = ",", col_names = TRUE)
+        assign(paste0("K", k, "_total_pts"), df4)
+}
+
+# Merge into one big dataframe
+## K = 4 corresponds to Bahamian subspecies and K = 8 are brevirostris
+all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K5_total_pts,
+                    K6_total_pts, K7_total_pts, K9_total_pts))
+
+env_values <- raster::extract(all_pts[, c("longitude", "latitude")],
+                            x = env)
+all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
+
+bio3 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_03, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster I",
+        x = "Genetic Clusters (K = 9)",
+        y = "Isothermality (BIO3)") +
+    theme_classic()
+bio3
+
+bio4 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_04, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster I",
+        x = "Genetic Clusters (K = 9)",
+        y = "Temperature Seasonality (BIO4)") +
+    theme_classic()
+bio4
+
+bio5 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_05, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster I",
+        x = "Genetic Clusters (K = 9)", 
+        y = "Mean Daily Max. Temp of Warmest Month (BIO5)") +
+    theme_classic()
+bio5
+
+bio15 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_15, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster II",
+        x = "Genetic Clusters (K = 9)",
+        y = "Precipitation Seasonality (BIO15)") +
+    theme_classic()
+bio15
+
+bio16 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_16, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster II",
+        x = "Genetic Clusters (K = 9)",
+        y = "Mean Monthly Precipitation Amount of Wettest Quarter (BIO16)") +
+    theme_classic()
+bio16
+
+marEVI <- ggplot(all_pts, aes(x = clust, y = march_EVI_mean, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster II",
+        x = "Genetic Clusters (K = 9)",
+        y = "March EVI") +
+    theme_classic()
+marEVI
+
+mayNDVI <- ggplot(all_pts, aes(x = clust, y = may_NDVI_mean, fill = clust)) +
+    geom_violin() +
+    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(title = "Climate Varies by Genetic Cluster II",
+        x = "Genetic Clusters (K = 9)",
+        y = "May NDVI") +
+    theme_classic()
+mayNDVI 
+```
+
+```{r}
+# Now, perform PCA on extracted raster layer values
+pca <- prcomp(all_pts[, 4:ncol(all_pts)], scale. = TRUE)
+    summary(pca)
+pca2 <- as_tibble(data.frame(cbind(all_pts[,1:3], pca$x)))
+
+pc_plot <- ggplot(pca2, aes(PC1, PC2, color = clust)) + geom_point(size = 3)
+pc_plot <- pc_plot + coord_equal() + stat_ellipse() +
+    scale_color_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+    labs(x = "PC1 (38.58%)", y = "PC2 (32.09%)") +
+    theme_light(base_size = 16)
+pc_plot
+ggsave("env_pc1-pc2.pdf")
+
+# For safe measure, do PCA on rasters themselves
+
+```
+
+```{r}
+# Create ENMTools species objects
+for (k in c(1:3, 5:7, 9)){
+    species <- enmtools.species(species.name = paste0("K", k),
+                            presence.points = read.csv(paste0("K", k, "_total_pts.csv")))
+    species$range <- background.raster.buffer(species$presence.points, 50000, mask = env2)
+    species$background.points <- background.points.buffer(points = species$presence.points,
+                                    radius = 1000, n = 1000, mask = env2[[1]])
+    print(check.species(species))
+        assign(species$species.name, species)
+}
+
+# pdf("niche-sampling-map.pdf")
+# plot(Hispaniola)
+# points(K1$presence.points, col = "gray80", pch = 15)
+# points(K7$presence.points, col = "#cf5d34", pch = 15)
+# points(K9$presence.points, col = "#1a1ac2", pch =15)
+# points(K5$presence.points, col = "#fddc1f", pch = 15)
+# points(K6$presence.points, col = "#993cc8", pch = 15)
+# points(K3$presence.points, col = "#c6b89c", pch = 15)
+# points(K2$presence.points, col = "#634102", pch = 15)
+# dev.off()
+```
+
+```{r}
+# Perform niche equivalency testing
+    ## The identity test takes presence points for two species and randomly reassigns them
+    ## to each species, builds ENMs for these randomized occurrences, and, through many reps,
+    ## estimates a probability distribution for ENM overlap between species under null hypothesis
+    ## that species' occurrences are randomly drawn from same distribution.
+
+# A. d. properus cluster (1) vs A. d. ignigularis cluster (7)
+K1_7 <- identity.test(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+# A. d. dominicensis II cluster (2) vs A. d. ignigularis cluster (7)
+K2_7 <- identity.test(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+# A. d. dominicensis II cluster (2) vs A. d. dominicensis I & IV cluster (3)
+K2_3 <- identity.test(species.1 = K2, species.2 = K3, env = env2, type = "glm", nreps = 100)
+
+# A. d. ravitergum cluster (5) vs. A. d. ignigularis cluster (7) 
+K5_7 <- identity.test(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+# A. d. ravitergum cluster (5) vs. South paleo-island subsp. cluster (6)
+K5_6 <- identity.test(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 100)
+
+# A. d. dominicensis I & IV cluster (3) vs vs. South paleo-island subsp. cluster (6) 
+K3_6 <- identity.test(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 100)
+```
+
+```{r}
+# Perform rangebreak tests
+
+# A. d. properus cluster (1) vs A. d. ignigularis cluster (7)
+K1_7.rbl <- rangebreak.linear(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+K1_7.rbb <- rangebreak.blob(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+# A. d. dominicensis II cluster (2) vs A. d. ignigularis cluster (7)
+K2_7.rbl <- rangebreak.linear(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+K2_7.rbb <- rangebreak.blob(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+# A. d. ravitergum cluster (5) vs. A. d. ignigularis cluster (7)
+K5_7.rbl <- rangebreak.linear(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+K5_7.rbb <- rangebreak.blob(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 100)
+
+# A. d. ravitergum cluster (5) vs. South paleo-island subsp. cluster (6)
+K5_6.rbl <- rangebreak.linear(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 100)
+
+K5_6.rbb <- rangebreak.blob(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 100)
+
+# A. d. dominicensis I & IV cluster (3) vs vs. South paleo-island subsp. cluster (6) 
+K3_6.rbl <- rangebreak.linear(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 100)
+
+K3_6.rbb <- rangebreak.blob(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 100)
+```

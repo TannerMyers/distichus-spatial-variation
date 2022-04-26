@@ -29,56 +29,78 @@ dir.create(occ_dir)
 ### Occurence download & curation 
 ################################################################################################
 
-# Get occurrences for Anolis distichus from GBIF, VertNet, and iNaturalist
+# Get occurrences for Anolis distichus and Anolis brevirostris from GBIF, VertNet, and iNaturalist
 ad <- spocc::occ(query = c("Anolis distichus", "Anolis dominicensis",
     "Anolis ignigularis", "Anolis properus", "Anolis favillarum",
     "Anolis ravitergum", "Anolis vinosus", "Anolis aurifer", "Anolis suppar"),
     from = c("vertnet", "gbif", "inat"),
     limit = 100000)
 
+ab <- spocc::occ(query = c("Anolis brevirostris"), 
+    from = c("vertnet", "gbif", "inat"), 
+    limit = 100000)
+
 ## Get list of dataframes containing occurrences under different taxon labels from GBIF 
-    gbif_occs <- ad$gbif$data
+    gbif_occs.ad <- ad$gbif$data
+    gbif_occs.ab <- ab$gbif$data
     # Combine all dataframes into one large dataframe
-    gbif_occs <- bind_rows(gbif_occs, .id = "column_label")
+    gbif_occs.ad <- bind_rows(gbif_occs.ad, .id = "column_label")
+    gbif_occs.ab <- bind_rows(gbif_occs.ab, .id = "column_label") 
 
     # Repeat for iNaturalist and VertNet occurrences
-    inat_occs <- ad$inat$data
-    inat <- bind_rows(inat_occs, .id = "column_label")
-    vertnet_occs <- ad$vertnet$data
-    vertnet_occs <- bind_rows(vertnet_occs, .id = "column_label")
+    inat_occs.ad <- ad$inat$data
+    inat_occs.ad <- bind_rows(inat_occs.ad, .id = "column_label")
+    inat_occs.ab <- ab$inat$data
+    inat_occs.ab <- bind_rows(inat_occs.ab, .id = "column_label")
+    vertnet_occs.ad <- ad$vertnet$data
+    vertnet_occs.ad <- bind_rows(vertnet_occs.ad, .id = "column_label")
+    vertnet_occs.ab <- ab$vertnet$data
+    vertnet_occs.ab <- bind_rows(vertnet_occs.ab, .id = "column_label")
 
     # Write unfiltered occurrences from the databases to files
-    write_csv(gbif_occs, "Anolis_distichus_GBIF_occurrences_download.csv")
-    write_csv(vertnet_occs, "Anolis_distichus_VertNet_occurrences_download.csv")
-    write_csv(inat_occs, "Anolis_distichus_iNat_occurrences_download.csv")
+    write_csv(gbif_occs.ad, "Anolis_distichus_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs.ad, "Anolis_distichus_VertNet_occurrences_download.csv")
+    write_csv(inat_occs.ad, "Anolis_distichus_iNat_occurrences_download.csv")
+    write_csv(gbif_occs.ab, "Anolis_brevirostris_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs.ab, "Anolis_brevirostris_VertNet_occurrences_download.csv")
+    write_csv(inat_occs.ab, "Anolis_brevirostris_iNat_occurrences_download.csv")
 
-## Create master file of occurrences
-    colnames(gbif_occs)
+## Create master files of occurrences
+    colnames(gbif_occs.ad)
+    # This will work for both species' sets of occurrences
     columns <- c("name", "longitude", "latitude", "year", "month", "day")
 
-    occs <- as_tibble(rbind(gbif_occs[, columns], vertnet_occs[, columns]))
+    occs.ad <- as_tibble(rbind(gbif_occs.ad[, columns], vertnet_occs.ad[, columns]))
+    occs.ab <- as_tibble(rbind(gbif_occs.ab[, columns], vertnet_occs.ad[, columns])) 
 
     # For iNaturalist occurrences only (naming conventions differ) 
     ## First, filter out non-research grade, obscured, and private observations
-    inat_occs <- inat_occs[inat_occs$quality_grade=="research",]
-    inat_occs <- inat_occs %>% filter(!geoprivacy %in% c("obscured", "private")) 
+    inat_occs.ad <- inat_occs.ad[inat_occs.ad$quality_grade=="research",]
+    inat_occs.ad <- inat_occs.ad %>% filter(!geoprivacy %in% c("obscured", "private")) 
+    inat_occs.ab <- inat_occs.ab[inat_occs.ab$quality_grade=="research",]
+    inat_occs.ab <- inat_occs.ab %>% filter(!geoprivacy %in% c("obscured", "private")) 
 
-    colnames(inat_occs)
-    columns <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
-    inat_occs_filtered <- inat_occs[, columns]
+    colnames(inat_occs.ad)
+    columns2 <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
+    inat_occs_filtered.ad <- inat_occs.ad[, columns2]
+    inat_occs_filtered.ab <- inat_occs.ab[, columns2]
+    colnames(inat_occs_filtered.ad) <- columns 
+    colnames(inat_occs_filtered.ab) <- columns
 
-occs <- as_tibble(rbind(occs, inat_occs_filtered))
-write_csv(occs, "unfiltered_distichus_occurrences.csv")
+occs.ad <- as_tibble(rbind(occs.ad, inat_occs_filtered.ad))
+occs.ab <- as_tibble(rbind(occs.ab, inat_occs_filtered.ab)) 
+write_csv(occs.ad, "unfiltered_distichus_occurrences.csv")
+write_csv(occs.ab, "unfiltered_brevirostris_occurrences.csv")
 
 # Clean occurrence data
 
-occs <- read_csv("unfiltered_distichus_occurrences.csv")
+occs.ad <- read_csv("unfiltered_distichus_occurrences.csv")
 
 ## Exclude occurrences without coordinates
-occs <- occs %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
+occs.ad <- occs.ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
 
 ## Exclude duplicate occurrences
-occs <- occs[!duplicated(paste(occs$longitude, occs$latitude)), ]
+occs.ad <- occs.ad[!duplicated(paste(occs.ad$longitude, occs.ad$latitude)), ]
 
 # Omit samples not from Hispaniola
     ## To do this, we will load a shapefile of the island of Hispaniola
@@ -92,20 +114,27 @@ occs <- occs[!duplicated(paste(occs$longitude, occs$latitude)), ]
     ## Get extent for cropping
     limits <- extent(Hispaniola)
 
-    ## Convert `occs` object to SpatialPointsDataFrame
-    occs.spdf <- SpatialPointsDataFrame(occs[,c("longitude", "latitude")], occs[,c(1, 4:ncol(occs))])
+    ## Convert occurrences object to SpatialPointsDataFrame
+    occs.ad.spdf <- SpatialPointsDataFrame(occs.ad[,c("longitude", "latitude")], occs.ad[,c(1, 4:ncol(occs.ad))])
+    occs.ab.spdf <- SpatialPointsDataFrame(occs.ab[,c("longitude", "latitude")], occs.ab[,c(1, 4:ncol(occs.ab))]) 
     ## Crop it!
-    occs.spdf <- raster::crop(occs.spdf, limits)
+    occs.ad.spdf <- raster::crop(occs.ad.spdf, limits)
+    occs.ab.spdf <- raster::crop(occs.ab.spdf, limits)
 
     ## Convert back to dataframe --- Probably a better way to do this, but I couldn't think of one or find an alternative
-    occs <- as_tibble(cbind(occs.spdf@data[,1], occs.spdf@coords, occs.spdf@data[,2:ncol(occs.spdf@data)]))
+    occs.ad <- as_tibble(cbind(occs.ad.spdf@data[,1], occs.ad.spdf@coords, occs.ad.spdf@data[,2:ncol(occs.ad.spdf@data)]))
+    occs.ab <- as_tibble(cbind(occs.ab.spdf@data[,1], occs.ab.spdf@coords, occs.ab.spdf@data[,2:ncol(occs.ab.spdf@data)])) 
 
 # There are still some pesky ocean-dwelling anoles, but those will get cleaned up when we split this dataset into different lineages 
-write_csv(occs, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
+write_csv(occs.ad, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
+write.csv(occs.ab, paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
 
 ################################################################################################
 ### Split occurrences by lineage
 ################################################################################################
+
+# NOTE: Below this line has not been edited to reflect potential downstream effects of adding lines to
+# download and filter occurrences for A. brevirostris
 
 # Results from population structure and phylogenetic analyses suggest there are ~7 lineages on mainland Hispaniola: 
 # (1) A. d. dominicensis II and (2) A. dominicensis I & IV (see Geneva et al. 2015), (3) A. d. ignigularis, 
