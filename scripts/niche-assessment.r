@@ -50,7 +50,7 @@ for (k in c(1:3, 5:9)){
 
 # A. brevirostris cluster (8) vs A. d. ravitergum cluster (5)
 K8_5 <- identity.test(species.1 = K8, species.2 = K5, env = env2, type = "glm", nreps = 500)
-    print(K8_7)
+    print(K8_5)
     pdf("niche-assessment/K8_5.pdf")
     plot(K8_5)
     dev.off()
