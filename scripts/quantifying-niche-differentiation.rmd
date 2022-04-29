@@ -19,6 +19,10 @@ rm(list = ls())
 # Set working directory
 working_dir <- getwd()
 setwd(working_dir)
+
+# Create directory where you want unfiltered occurrences to go 
+occ_dir <- paste0(working_dir, "/data/occurrences/")
+dir.create(occ_dir)
 ```
 
 ```{r}
@@ -121,7 +125,6 @@ occs.ad <- occs.ad[!duplicated(paste(occs.ad$longitude, occs.ad$latitude)), ]
 # There are still some pesky ocean-dwelling anoles, but those will get cleaned up when we split this dataset into different lineages 
 write_csv(occs.ad, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
 write.csv(occs.ab, paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
-
 ```
 
 ``` {r}
@@ -367,38 +370,62 @@ ind_data2 <- ind_data2 %>% filter(Sample != "4481" & Sample != "10085" & Sample 
     filter(!(Taxon %in% c("websteri", "marron", "caudalis", "altavelensis")))
 
 # Load filtered occurrences downloaded with `spocc` R package
-occs <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
+occs.ad <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
+occs.ab <- read_csv("data/occurrences/filtered_brevirostris_occurrences.csv")
 ```
 
 ```{r}
 for (k in 1:9){
+    if (k == 8){
+        df <- ind_data2[ind_data2$K9cluster == k, ]
+        assign(paste0("K_", k), df)
 
-    df <- ind_data2[ind_data2$K9cluster == k, ]
-    assign(paste0("K_", k), df)
+        # Make spatial points dataframe and polygons based on genetic clusters inferred by sNMF
+        pts <- SpatialPoints(df[, c("Longitude", "Latitude")])
+        colnames(pts@coords) <- c("longitude", "latitude")
+            assign(paste0("K", k, "_pts"), pts)
+        poly <- gConvexHull(pts)
+            assign(paste0("K", k, "_poly"), poly)
 
-    # Make spatial points dataframe and polygons based on genetic clusters inferred by sNMF
-    pts <- SpatialPoints(df[, c("Longitude", "Latitude")])
-    colnames(pts@coords) <- c("longitude", "latitude")
-        assign(paste0("K", k, "_pts"), pts)
-    poly <- gConvexHull(pts)
-        assign(paste0("K", k, "_poly"), poly)
+        # Subset occurrences that fall within spatial polygon made above
+        df2 <- occs.ab[!is.na(over(SpatialPoints(occs.ab[, 2:3]), poly)),]
+        # Combine total points
+        df3 <- as_tibble(rbind(pts@coords, df2[,2:3]))
+        clust <- rep(k, nrow(df3))
+        df4 <- as_tibble(cbind(df3, clust))
+            df4$clust <- as.factor(df4$clust)
+        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "_total_pts.csv"), # NEEDS TESTING
+                    delim = ",", col_names = TRUE)
+            assign(paste0("K", k, "_total_pts"), df4)
 
-    # Subset occurrences that fall within spatial polygon made above
-    df2 <- occs[!is.na(over(SpatialPoints(occs[, 2:3]), poly)),]
-    # Combine total points
-    df3 <- as_tibble(rbind(pts@coords, df2[,2:3]))
-    clust <- rep(k, nrow(df3))
-    df4 <- as_tibble(cbind(df3, clust))
-        df4$clust <- as.factor(df4$clust)
-    write_delim(x = df4, file = paste0("K", k, "_total_pts.csv"), # NEEDS TESTING
-                delim = ",", col_names = TRUE)
-        assign(paste0("K", k, "_total_pts"), df4)
+    } else {
+        df <- ind_data2[ind_data2$K9cluster == k, ]
+        assign(paste0("K_", k), df)
+
+        # Make spatial points dataframe and polygons based on genetic clusters inferred by sNMF
+        pts <- SpatialPoints(df[, c("Longitude", "Latitude")])
+        colnames(pts@coords) <- c("longitude", "latitude")
+            assign(paste0("K", k, "_pts"), pts)
+        poly <- gConvexHull(pts)
+            assign(paste0("K", k, "_poly"), poly)
+
+        # Subset occurrences that fall within spatial polygon made above
+        df2 <- occs.ad[!is.na(over(SpatialPoints(occs.ad[, 2:3]), poly)), ]
+        # Combine total points
+        df3 <- as_tibble(rbind(pts@coords, df2[, 2:3]))
+        clust <- rep(k, nrow(df3))
+        df4 <- as_tibble(cbind(df3, clust))
+            df4$clust <- as.factor(df4$clust)
+        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "_total_pts.csv"),
+                    delim = ",", col_names = TRUE)
+            assign(paste0("K", k, "_total_pts"), df4)
+    }
 }
 
 # Merge into one big dataframe
 ## K = 4 corresponds to Bahamian subspecies and K = 8 are brevirostris
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K5_total_pts,
-                    K6_total_pts, K7_total_pts, K9_total_pts))
+                    K6_total_pts, K7_total_pts, K8_total_pts, K9_total_pts))
 
 env_values <- raster::extract(all_pts[, c("longitude", "latitude")],
                             x = env)
@@ -407,7 +434,7 @@ all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
 bio3 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_03, fill = clust)) +
     geom_violin() +
     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster I",
         x = "Genetic Clusters (K = 9)",
         y = "Isothermality (BIO3)") +
@@ -416,8 +443,8 @@ bio3
 
 bio4 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_04, fill = clust)) +
     geom_violin() +
-    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster I",
         x = "Genetic Clusters (K = 9)",
         y = "Temperature Seasonality (BIO4)") +
@@ -426,8 +453,8 @@ bio4
 
 bio5 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_05, fill = clust)) +
     geom_violin() +
-    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster I",
         x = "Genetic Clusters (K = 9)", 
         y = "Mean Daily Max. Temp of Warmest Month (BIO5)") +
@@ -436,8 +463,8 @@ bio5
 
 bio15 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_15, fill = clust)) +
     geom_violin() +
-    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster II",
         x = "Genetic Clusters (K = 9)",
         y = "Precipitation Seasonality (BIO15)") +
@@ -446,8 +473,8 @@ bio15
 
 bio16 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_16, fill = clust)) +
     geom_violin() +
-    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster II",
         x = "Genetic Clusters (K = 9)",
         y = "Mean Monthly Precipitation Amount of Wettest Quarter (BIO16)") +
@@ -456,8 +483,8 @@ bio16
 
 marEVI <- ggplot(all_pts, aes(x = clust, y = march_EVI_mean, fill = clust)) +
     geom_violin() +
-    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster II",
         x = "Genetic Clusters (K = 9)",
         y = "March EVI") +
@@ -466,8 +493,8 @@ marEVI
 
 mayNDVI <- ggplot(all_pts, aes(x = clust, y = may_NDVI_mean, fill = clust)) +
     geom_violin() +
-    scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+     scale_fill_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(title = "Climate Varies by Genetic Cluster II",
         x = "Genetic Clusters (K = 9)",
         y = "May NDVI") +
@@ -484,11 +511,14 @@ pca2 <- as_tibble(data.frame(cbind(all_pts[,1:3], pca$x)))
 pc_plot <- ggplot(pca2, aes(PC1, PC2, color = clust)) + geom_point(size = 3)
 pc_plot <- pc_plot + coord_equal() + stat_ellipse() +
     scale_color_manual(values = c("gray80", "#634102", "#c6b89c", "#fddc1f",
-                    "#993cc8", "#cf5d34", "#1a1ac2")) +
+                    "#993cc8", "#cf5d34", "black", "#1a1ac2")) +
     labs(x = "PC1 (38.58%)", y = "PC2 (32.09%)") +
     theme_light(base_size = 16)
 pc_plot
 ggsave("env_pc1-pc2.pdf")
+
+# Do contour plot of principal compoents NOT FINISHED
+#test <- ggplot(pca2, aes(PC1, PC2)) + stat_density_2d(aes(fill = clust), geom = "polygon")
 
 # For safe measure, do PCA on rasters themselves
 
@@ -496,9 +526,9 @@ ggsave("env_pc1-pc2.pdf")
 
 ```{r}
 # Create ENMTools species objects
-for (k in c(1:3, 5:7, 9)){
+for (k in c(1:3, 5:9)){
     species <- enmtools.species(species.name = paste0("K", k),
-                            presence.points = read.csv(paste0("K", k, "_total_pts.csv")))
+                            presence.points = read.csv(paste0("niche-assessment/K", k, "_total_pts.csv")))
     species$range <- background.raster.buffer(species$presence.points, 50000, mask = env2)
     species$background.points <- background.points.buffer(points = species$presence.points,
                                     radius = 1000, n = 1000, mask = env2[[1]])
@@ -514,6 +544,7 @@ for (k in c(1:3, 5:7, 9)){
 # points(K5$presence.points, col = "#fddc1f", pch = 15)
 # points(K6$presence.points, col = "#993cc8", pch = 15)
 # points(K3$presence.points, col = "#c6b89c", pch = 15)
+# points(K8$presence.points, col = "black", pch = 15)
 # points(K2$presence.points, col = "#634102", pch = 15)
 # dev.off()
 ```
