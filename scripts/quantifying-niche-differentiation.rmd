@@ -101,12 +101,12 @@ occs.ad <- occs.ad[!duplicated(paste(occs.ad$longitude, occs.ad$latitude)), ]
 
 # Omit samples not from Hispaniola
     ## To do this, we will load a shapefile of the island of Hispaniola
-    DOM <- getData('GADM', country='DOM', level=0, path = "data/shape-files/", download = F)
-    HTI <- getData('GADM', country='HTI', level=0, path = "data/shape-files/", download =F)
-    row.names(DOM) <- paste("DOM", row.names(DOM), sep="_")
-    row.names(HTI) <- paste("HTI", row.names(HTI), sep="_")
+    DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = F)
+    HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download =F)
+    row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
+    row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
     Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
-    Hispaniola <- gSimplify(Hispaniola, tol=0.01, topologyPreserve=TRUE)
+    Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
 
     ## Get extent for cropping
     limits <- extent(Hispaniola)
@@ -521,6 +521,54 @@ ggsave("env_pc1-pc2.pdf")
 #test <- ggplot(pca2, aes(PC1, PC2)) + stat_density_2d(aes(fill = clust), geom = "polygon")
 
 # For safe measure, do PCA on rasters themselves
+pca_env <- RStoolbox::rasterPCA(env, spca = TRUE)
+    # plot pca_env$map
+summary(pca_env$model)
+# Importance of components:
+#                           Comp.1    Comp.2    Comp.3     Comp.4     Comp.5
+# Standard deviation     2.6374138 2.4217969 1.7510149 1.41265862 1.12982256
+# Proportion of Variance 0.3477976 0.2932550 0.1533027 0.09978022 0.06382495
+# Cumulative Proportion  0.3477976 0.6410526 0.7943552 0.89413547 0.95796042
+#                            Comp.6      Comp.7      Comp.8      Comp.9
+# Standard deviation     0.66859372 0.395721763 0.311149019 0.224127442
+# Proportion of Variance 0.02235088 0.007829786 0.004840686 0.002511656
+# Cumulative Proportion  0.98031129 0.988141080 0.992981766 0.995493421
+#                            Comp.10     Comp.11      Comp.12     Comp.13
+# Standard deviation     0.183755922 0.142101776 0.1171059698 0.106767319
+# Proportion of Variance 0.001688312 0.001009646 0.0006856904 0.000569963
+# Cumulative Proportion  0.997181733 0.998191379 0.9988770693 0.999447032
+#                             Comp.14      Comp.15      Comp.16      Comp.17
+# Standard deviation     0.0802225538 0.0578716000 2.748685e-02 1.303474e-02
+# Proportion of Variance 0.0003217829 0.0001674561 3.777633e-05 8.495227e-06
+# Cumulative Proportion  0.9997688153 0.9999362714 9.999740e-01 9.999825e-01
+#                             Comp.18      Comp.19      Comp.20
+# Standard deviation     1.158269e-02 1.088623e-02 9.822052e-03
+# Proportion of Variance 6.707933e-06 5.925504e-06 4.823635e-06
+# Cumulative Proportion  9.999893e-01 9.999952e-01 1.000000e+00
+
+knitr::kable(round(pca_env$model$loadings[, 1:5], 5))
+# |                   |   Comp.1|   Comp.2|   Comp.3|   Comp.4|   Comp.5|
+# |:------------------|--------:|--------:|--------:|--------:|--------:|
+# |SRTM_elevation_1km |  0.26928|  0.25862|  0.14115|  0.06832|  0.10597|
+# |CHELSA_bio10_01    | -0.27004| -0.27532| -0.10534| -0.02085| -0.09716|
+# |CHELSA_bio10_02    |  0.25876|  0.04529| -0.38415| -0.13501| -0.13435|
+# |CHELSA_bio10_03    |  0.22154|  0.08965| -0.33440| -0.14061| -0.15920|
+# |CHELSA_bio10_04    |  0.12608| -0.09123| -0.40428| -0.24556|  0.10070|
+# |CHELSA_bio10_05    | -0.17017| -0.28678| -0.29890| -0.08504| -0.13933|
+# |CHELSA_bio10_06    | -0.31372| -0.22495|  0.06633|  0.03513| -0.03031|
+# |CHELSA_bio10_07    |  0.25351|  0.01085| -0.40117| -0.13643| -0.10315|
+# |CHELSA_bio10_10    | -0.25659| -0.28387| -0.13566| -0.03117| -0.08583|
+# |CHELSA_bio10_11    | -0.28029| -0.26791| -0.07416| -0.00077| -0.09819|
+# |CHELSA_bio10_12    | -0.17690|  0.26802| -0.24194|  0.27154| -0.09103|
+# |CHELSA_bio10_13    | -0.13576|  0.25390| -0.15566|  0.37941| -0.28263|
+# |CHELSA_bio10_14    | -0.24477|  0.22153| -0.21881|  0.07405|  0.30397|
+# |CHELSA_bio10_15    |  0.19880| -0.11382|  0.19591|  0.14782| -0.59810|
+# |CHELSA_bio10_16    | -0.14262|  0.24892| -0.15252|  0.39519| -0.27436|
+# |CHELSA_bio10_17    | -0.24614|  0.22208| -0.21516|  0.07368|  0.31101|
+# |march_EVI_mean     | -0.24946|  0.22459|  0.06598| -0.31146| -0.05524|
+# |march_NDVI_mean    | -0.16967|  0.27535|  0.11522| -0.34843| -0.04275|
+# |may_EVI_mean       | -0.21705|  0.21113|  0.03412| -0.33594| -0.29322|
+# |may_NDVI_mean      | -0.13553|  0.27044|  0.10093| -0.36147| -0.27689|
 
 ```
 
