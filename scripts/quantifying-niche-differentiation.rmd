@@ -20,7 +20,7 @@ rm(list = ls())
 working_dir <- getwd()
 setwd(working_dir)
 
-# Create directory where you want unfiltered occurrences to go 
+# Create directory where you want unfiltered occurrences to go
 occ_dir <- paste0(working_dir, "/data/occurrences/")
 dir.create(occ_dir)
 ```
@@ -38,66 +38,66 @@ ab <- spocc::occ(query = c("Anolis brevirostris"),
     limit = 100000)
 
 ## Get list of dataframes containing occurrences under different taxon labels from GBIF 
-    gbif_occs.ad <- ad$gbif$data
-    gbif_occs.ab <- ab$gbif$data
+    gbif_occs_ad <- ad$gbif$data
+    gbif_occs_ab <- ab$gbif$data
     # Combine all dataframes into one large dataframe
-    gbif_occs.ad <- bind_rows(gbif_occs.ad, .id = "column_label")
-    gbif_occs.ab <- bind_rows(gbif_occs.ab, .id = "column_label") 
+    gbif_occs_ad <- bind_rows(gbif_occs_ad, .id = "column_label")
+    gbif_occs_ab <- bind_rows(gbif_occs_ab, .id = "column_label") 
 
     # Repeat for iNaturalist and VertNet occurrences
-    inat_occs.ad <- ad$inat$data
-    inat_occs.ad <- bind_rows(inat_occs.ad, .id = "column_label")
-    inat_occs.ab <- ab$inat$data
-    inat_occs.ab <- bind_rows(inat_occs.ab, .id = "column_label")
-    vertnet_occs.ad <- ad$vertnet$data
-    vertnet_occs.ad <- bind_rows(vertnet_occs.ad, .id = "column_label")
-    vertnet_occs.ab <- ab$vertnet$data
-    vertnet_occs.ab <- bind_rows(vertnet_occs.ab, .id = "column_label")
+    inat_occs_ad <- ad$inat$data
+    inat_occs_ad <- bind_rows(inat_occs_ad, .id = "column_label")
+    inat_occs_ab <- ab$inat$data
+    inat_occs_ab <- bind_rows(inat_occs_ab, .id = "column_label")
+    vertnet_occs_ad <- ad$vertnet$data
+    vertnet_occs_ad <- bind_rows(vertnet_occs_ad, .id = "column_label")
+    vertnet_occs_ab <- ab$vertnet$data
+    vertnet_occs_ab <- bind_rows(vertnet_occs_ab, .id = "column_label")
 
     # Write unfiltered occurrences from the databases to files
-    write_csv(gbif_occs.ad, "Anolis_distichus_GBIF_occurrences_download.csv")
-    write_csv(vertnet_occs.ad, "Anolis_distichus_VertNet_occurrences_download.csv")
-    write_csv(inat_occs.ad, "Anolis_distichus_iNat_occurrences_download.csv")
-    write_csv(gbif_occs.ab, "Anolis_brevirostris_GBIF_occurrences_download.csv")
-    write_csv(vertnet_occs.ab, "Anolis_brevirostris_VertNet_occurrences_download.csv")
-    write_csv(inat_occs.ab, "Anolis_brevirostris_iNat_occurrences_download.csv")
+    write_csv(gbif_occs_ad, "Anolis_distichus_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs_ad, "Anolis_distichus_VertNet_occurrences_download.csv")
+    write_csv(inat_occs_ad, "Anolis_distichus_iNat_occurrences_download.csv")
+    write_csv(gbif_occs_ab, "Anolis_brevirostris_GBIF_occurrences_download.csv")
+    write_csv(vertnet_occs_ab, "Anolis_brevirostris_VertNet_occurrences_download.csv")
+    write_csv(inat_occs_ab, "Anolis_brevirostris_iNat_occurrences_download.csv")
 
 ## Create master files of occurrences
-    colnames(gbif_occs.ad)
+    colnames(gbif_occs_ad)
     # This will work for both species' sets of occurrences
     columns <- c("name", "longitude", "latitude", "year", "month", "day")
 
-    occs.ad <- as_tibble(rbind(gbif_occs.ad[, columns], vertnet_occs.ad[, columns]))
-    occs.ab <- as_tibble(rbind(gbif_occs.ab[, columns], vertnet_occs.ad[, columns])) 
+    occs_ad <- as_tibble(rbind(gbif_occs_ad[, columns], vertnet_occs_ad[, columns]))
+    occs_ab <- as_tibble(rbind(gbif_occs_ab[, columns], vertnet_occs_ad[, columns])) 
 
     # For iNaturalist occurrences only (naming conventions differ) 
     ## First, filter out non-research grade, obscured, and private observations
-    inat_occs.ad <- inat_occs.ad[inat_occs.ad$quality_grade=="research",]
-    inat_occs.ad <- inat_occs.ad %>% filter(!geoprivacy %in% c("obscured", "private")) 
-    inat_occs.ab <- inat_occs.ab[inat_occs.ab$quality_grade=="research",]
-    inat_occs.ab <- inat_occs.ab %>% filter(!geoprivacy %in% c("obscured", "private")) 
+    inat_occs_ad <- inat_occs_ad[inat_occs_ad$quality_grade=="research",]
+    inat_occs_ad <- inat_occs_ad %>% filter(!geoprivacy %in% c("obscured", "private")) 
+    inat_occs_ab <- inat_occs_ab[inat_occs_ab$quality_grade=="research",]
+    inat_occs_ab <- inat_occs_ab %>% filter(!geoprivacy %in% c("obscured", "private")) 
 
-    colnames(inat_occs.ad)
+    colnames(inat_occs_ad)
     columns2 <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
-    inat_occs_filtered.ad <- inat_occs.ad[, columns2]
-    inat_occs_filtered.ab <- inat_occs.ab[, columns2]
+    inat_occs_filtered.ad <- inat_occs_ad[, columns2]
+    inat_occs_filtered.ab <- inat_occs_ab[, columns2]
     colnames(inat_occs_filtered.ad) <- columns 
     colnames(inat_occs_filtered.ab) <- columns
 
-occs.ad <- as_tibble(rbind(occs.ad, inat_occs_filtered.ad))
-occs.ab <- as_tibble(rbind(occs.ab, inat_occs_filtered.ab)) 
-write_csv(occs.ad, "unfiltered_distichus_occurrences.csv")
-write_csv(occs.ab, "unfiltered_brevirostris_occurrences.csv")
+occs_ad <- as_tibble(rbind(occs_ad, inat_occs_filtered.ad))
+occs_ab <- as_tibble(rbind(occs_ab, inat_occs_filtered.ab)) 
+write_csv(occs_ad, "unfiltered_distichus_occurrences.csv")
+write_csv(occs_ab, "unfiltered_brevirostris_occurrences.csv")
 
 # Clean occurrence data
 
-occs.ad <- read_csv("unfiltered_distichus_occurrences.csv")
+occs_ad <- read_csv("unfiltered_distichus_occurrences.csv")
 
 ## Exclude occurrences without coordinates
-occs.ad <- occs.ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
+occs_ad <- occs_ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
 
 ## Exclude duplicate occurrences
-occs.ad <- occs.ad[!duplicated(paste(occs.ad$longitude, occs.ad$latitude)), ]
+occs_ad <- occs_ad[!duplicated(paste(occs_ad$longitude, occs_ad$latitude)), ]
 
 # Omit samples not from Hispaniola
     ## To do this, we will load a shapefile of the island of Hispaniola
@@ -112,19 +112,23 @@ occs.ad <- occs.ad[!duplicated(paste(occs.ad$longitude, occs.ad$latitude)), ]
     limits <- extent(Hispaniola)
 
     ## Convert occurrences object to SpatialPointsDataFrame
-    occs.ad.spdf <- SpatialPointsDataFrame(occs.ad[,c("longitude", "latitude")], occs.ad[,c(1, 4:ncol(occs.ad))])
-    occs.ab.spdf <- SpatialPointsDataFrame(occs.ab[,c("longitude", "latitude")], occs.ab[,c(1, 4:ncol(occs.ab))]) 
+    occs_ad.spdf <- SpatialPointsDataFrame(occs_ad[,c("longitude", "latitude")], occs_ad[,c(1, 4:ncol(occs_ad))])
+    occs_ab.spdf <- SpatialPointsDataFrame(occs_ab[,c("longitude", "latitude")], occs_ab[,c(1, 4:ncol(occs_ab))]) 
     ## Crop it!
-    occs.ad.spdf <- raster::crop(occs.ad.spdf, limits)
-    occs.ab.spdf <- raster::crop(occs.ab.spdf, limits)
+    occs_ad.spdf <- raster::crop(occs_ad.spdf, limits)
+    occs_ab.spdf <- raster::crop(occs_ab.spdf, limits)
 
     ## Convert back to dataframe --- Probably a better way to do this, but I couldn't think of one or find an alternative
-    occs.ad <- as_tibble(cbind(occs.ad.spdf@data[,1], occs.ad.spdf@coords, occs.ad.spdf@data[,2:ncol(occs.ad.spdf@data)]))
-    occs.ab <- as_tibble(cbind(occs.ab.spdf@data[,1], occs.ab.spdf@coords, occs.ab.spdf@data[,2:ncol(occs.ab.spdf@data)])) 
+    occs_ad <- as_tibble(cbind(occs_ad.spdf@data[,1], occs_ad.spdf@coords, occs_ad.spdf@data[,2:ncol(occs_ad.spdf@data)]))
+    occs_ab <- as_tibble(cbind(occs_ab.spdf@data[,1], occs_ab.spdf@coords, occs_ab.spdf@data[,2:ncol(occs_ab.spdf@data)])) 
 
 # There are still some pesky ocean-dwelling anoles, but those will get cleaned up when we split this dataset into different lineages 
-write_csv(occs.ad, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
-write.csv(occs.ab, paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
+write_csv(occs_ad, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
+write.csv(occs_ab, paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
+
+# Load filtered occurrences downloaded with `spocc` R package
+occs_ad <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
+occs_ab <- read_csv("data/occurrences/filtered_brevirostris_occurrences.csv")
 ```
 
 ``` {r}
@@ -360,75 +364,48 @@ env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
 
 ```{r}
 # Load ddRAD sampling spreadsheet
-ind_data <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/info/distichus-popmap-cleaned-master.tsv", col_names = TRUE)
-cluster_K9 <- read_table("../ddRADseq_Phylogeography/population-structure/snmf/sNMF_K9_ancestry_coefficients_cluster.tsv", col_names=T)
-ind_data2 <- as_tibble(cbind(ind_data, cluster_K9$cluster))
-    colnames(ind_data2)[13] <- "K9cluster"
+rad_data <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/info/distichus-popmap-cleaned-master.tsv", col_names = TRUE)
+    rad_data[36,2] <- "1352_dom2" ## Note there is a discrepancy in how this specimen is classified between my sampling spreadsheets
+cluster <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/population-structure/lea/sNMF/distichus-subsp/sNMF_K5_ancestry_coefficients_cluster-specimen-cleaned.tsv", col_names = TRUE)
 
-# Exclude problem specimens and irrelevant species
-ind_data2 <- ind_data2 %>% filter(Sample != "4481" & Sample != "10085" & Sample != "10086") %>% 
-    filter(!(Taxon %in% c("websteri", "marron", "caudalis", "altavelensis")))
+rad_data2 <- rad_data[rad_data$Sample_ID_pop %in% cluster$Sample_ID_pop, ]
 
-# Load filtered occurrences downloaded with `spocc` R package
-occs.ad <- read_csv("data/occurrences/filtered_distichus_occurrences.csv")
-occs.ab <- read_csv("data/occurrences/filtered_brevirostris_occurrences.csv")
+rad_data2 <- as_tibble(cbind(rad_data2, cluster$cluster))
+    colnames(rad_data2)[13] <- "snmfCluster"
+```
+
+# Generate range polygons
+```{r}
+all_pts <- SpatialPoints(occs_ad[, 2:3])
+    crs(all_pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+
+for (k in 1:5){
+    pts <- rad_data2[rad_data2$snmfCluster == k, c("Longitude", "Latitude")]
+
+    poly <- rangeBuilder::getDynamicAlphaHull(x = pts, fraction = 1.0,
+                    clipToCoast = "terrestrial",
+                    buff = 1000)
+        assign(paste0("K", k, "_poly"), poly)
+
+    ## Subset occurrences that fall within spatial polygon made above
+    df <- occs_ad[!is.na(over(all_pts, poly[[1]])), ]
+    # Combine total points
+    colnames(pts) = colnames(all_pts@coords)
+    df2 <- as_tibble(rbind(pts, df[, 2:3]))
+    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
+        colnames(df3)[3] <- "K"
+        df3$K <- as.factor(df3$K)
+    write_delim(x = df3, file = paste0("niche-assessment/", "K", k, "_total_ah_pts.csv"),
+                delim = ",", col_names = TRUE)
+        assign(paste0("K", k, "_total_pts"), df3)
+}
+
 ```
 
 ```{r}
-for (k in 1:9){
-    if (k == 8){
-        df <- ind_data2[ind_data2$K9cluster == k, ]
-        assign(paste0("K_", k), df)
-
-        # Make spatial points dataframe and polygons based on genetic clusters inferred by sNMF
-        pts <- SpatialPoints(df[, c("Longitude", "Latitude")])
-        colnames(pts@coords) <- c("longitude", "latitude")
-            assign(paste0("K", k, "_pts"), pts)
-        poly <- gConvexHull(pts)
-            assign(paste0("K", k, "_poly"), poly)
-
-        # Subset occurrences that fall within spatial polygon made above
-        df2 <- occs.ab[!is.na(over(SpatialPoints(occs.ab[, 2:3]), poly)),]
-        # Combine total points
-        df3 <- as_tibble(rbind(pts@coords, df2[,2:3]))
-        clust <- rep(k, nrow(df3))
-        df4 <- as_tibble(cbind(df3, clust))
-            df4$clust <- as.factor(df4$clust)
-        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "_total_pts.csv"), # NEEDS TESTING
-                    delim = ",", col_names = TRUE)
-            assign(paste0("K", k, "_total_pts"), df4)
-
-    } else {
-        df <- ind_data2[ind_data2$K9cluster == k, ]
-        assign(paste0("K_", k), df)
-
-        # Make spatial points dataframe and polygons based on genetic clusters inferred by sNMF
-        pts <- SpatialPoints(df[, c("Longitude", "Latitude")])
-        colnames(pts@coords) <- c("longitude", "latitude")
-            assign(paste0("K", k, "_pts"), pts)
-        poly <- gConvexHull(pts)
-            assign(paste0("K", k, "_poly"), poly)
-
-        # Subset occurrences that fall within spatial polygon made above
-        df2 <- occs.ad[!is.na(over(SpatialPoints(occs.ad[, 2:3]), poly)), ]
-        # Combine total points
-        df3 <- as_tibble(rbind(pts@coords, df2[, 2:3]))
-        clust <- rep(k, nrow(df3))
-        df4 <- as_tibble(cbind(df3, clust))
-            df4$clust <- as.factor(df4$clust)
-        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "_total_pts.csv"),
-                    delim = ",", col_names = TRUE)
-            assign(paste0("K", k, "_total_pts"), df4)
-    }
-}
-
 # Merge into one big dataframe
-## K = 4 corresponds to Bahamian subspecies and K = 8 are brevirostris
-all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K5_total_pts,
-                    K6_total_pts, K7_total_pts, K8_total_pts, K9_total_pts))
-
-env_values <- raster::extract(all_pts[, c("longitude", "latitude")],
-                            x = env)
+all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
+env_values <- raster::extract(all_pts[, c("longitude", "latitude")], x = env)
 all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
 
 bio3 <- ggplot(all_pts, aes(x = clust, y = CHELSA_bio10_03, fill = clust)) +
@@ -574,9 +551,9 @@ knitr::kable(round(pca_env$model$loadings[, 1:5], 5))
 
 ```{r}
 # Create ENMTools species objects
-for (k in c(1:3, 5:9)){
+for (k in c(1:5)){
     species <- enmtools.species(species.name = paste0("K", k),
-                            presence.points = read.csv(paste0("niche-assessment/K", k, "_total_pts.csv")))
+                            presence.points = read.csv(paste0("niche-assessment/K", k, "_total_ah_pts.csv")))
     species$range <- background.raster.buffer(species$presence.points, 50000, mask = env2)
     species$background.points <- background.points.buffer(points = species$presence.points,
                                     radius = 1000, n = 1000, mask = env2[[1]])
