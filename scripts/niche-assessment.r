@@ -1,3 +1,8 @@
+rm(list = ls())
+
+# Set working directory
+working_dir <- getwd()
+setwd(working_dir)
 
 # Load libraries
 library(spocc)
@@ -5,15 +10,48 @@ library(sp)
 library(raster)
 library(rgeos)
 library(sf)
+library(rmapshaper)
+library(envirem)
+library(rangeBuilder)
+library(fauxcurrence)
 library(ENMTools)
 library(usdm)
 library(RStoolbox)
+library(data.table)
 library(tidyverse)
 
-# Load environmental variables
+# Load function from Warren et al. (2022) paper on spatial sampling bias
+bias.sample <- function(bias.raster, npoints, replace = TRUE, biased = TRUE){
+  
+  # Convert the raster to a set of points
+  bias.points <- data.frame(rasterToPoints(bias.raster))
+  
+  if(biased == TRUE){
+    # Sampling is biased
+    bias.points <- bias.points[sample(nrow(bias.points), 
+                                      size = npoints, 
+                                      prob = bias.points[,3],
+                                      replace = replace),]
+  } else {
+    # Sampling is unbiased
+    bias.points <- bias.points[sample(nrow(bias.points), 
+                                      size = npoints, 
+                                      replace = replace),]
+  }
+  
+  return(bias.points[,1:2])
+}
+
+# Directory with filtered and cleaned occurrences
+occ_dir <- paste0(working_dir, "/data/occurrences/")
+    ## Load filtered occurrences downloaded with `spocc` R package
+    occs_ad <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
+    occs_ab <- read_csv(paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
+
+# Load environmental data
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
 modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
-## Raster stacks have different extents
+## These raster stacks have different extents
     ## Since the extent of modis_vi fits within chelsa_clim's extent, crop chelsa_clim
     chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
     chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
@@ -31,149 +69,67 @@ env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
             "CHELSA_bio10_15", "CHELSA_bio10_16",
             "march_EVI_mean", "may_NDVI_mean")]]
 
-# Create ENMTools species objects
-for (k in c(1:3, 5:9)){
-    species <- enmtools.species(species.name = paste0("K", k),
-                            presence.points = read.csv(paste0("niche-assessment/K", k, "_total_pts.csv")))
-    species$range <- background.raster.buffer(species$presence.points, 50000, mask = env2)
-    species$background.points <- background.points.buffer(points = species$presence.points,
-                                    radius = 1000, n = 1000, mask = env2[[1]])
-    print(check.species(species))
-        assign(species$species.name, species)
+# Load ddRAD sampling spreadsheet
+rad_data <- read_table("~/distichus-ddRAD/info/distichus-popmap-cleaned-master.tsv", col_names = TRUE)
+    rad_data[36,2] <- "1352_dom2" ## Note there is a discrepancy in how this specimen is classified between my sampling spreadsheets
+cluster <- read_table("/scratch/tcm0036/distichus-ddRAD/analyses/population-structure/lea/distichus-complex-only/sNMF_K5_ancestry_coefficients_cluster-specimen-cleaned.tsv", col_names = TRUE)
+
+rad_data <- rad_data[rad_data$Sample_ID_pop %in% cluster$Sample_ID_pop, ]
+    rad_data <- as_tibble(cbind(rad_data, cluster$cluster))
+    colnames(rad_data)[13] <- "snmfCluster"
+    ## Remove duplicates
+    rad_data <- as_tibble(unique(setDT(rad_data), by = 'Locality'))
+
+# Make range polygons and raster and sort occurrences by lineage
+all_pts <- SpatialPoints(occs_ad[, 2:3])
+    crs(all_pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+
+for (k in 1:5){
+    pts <- SpatialPoints(rad_data[rad_data$snmfCluster == k, c("Longitude", "Latitude")])
+        crs(pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+
+    poly <- rangeBuilder::getDynamicAlphaHull(x = pts@coords, fraction = 1.0,
+                    clipToCoast = "terrestrial",
+                    buff = 1000)
+        assign(paste0("K", k, "_alpha_poly"), poly)
+    
+    lims <- extent(poly[[1]])
+        assign(paste0("K", k, "_extent"), lims)
+
+    ## Subset occurrences that fall within spatial polygon made above
+    df <- occs_ad[!is.na(over(all_pts, poly[[1]])), ]
+    # Combine total points
+    colnames(pts@coords) <- colnames(all_pts@coords)
+    df2 <- as_tibble(rbind(pts@coords, df[, 2:3]))
+    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
+        colnames(df3)[3] <- "K"
+        df3$K <- as.factor(df3$K)
+    write_delim(x = df3, file = paste0("niche-assessment/", "K", k, "_total_ah_pts.csv"),
+                delim = ",", col_names = TRUE)
+        assign(paste0("K", k, "_total_pts"), df3)
+    
+    ## Create raster for background point sampling
+    crop <- crop(env2[[1]], lims)
+    mask <- mask(crop, poly[[1]])
+    crs(mask) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+        writeRaster(x = mask, filename = paste0("niche-assessment/", "K", k, "_masked.asc"), format = "ascii", overwrite = TRUE)
+        assign(paste0("K", k, "_bias"), mask)
 }
 
-# Perform niche equivalency testing
-    ## The identity test takes presence points for two species and randomly reassigns them
-    ## to each species, builds ENMs for these randomized occurrences, and, through many reps,
-    ## estimates a probability distribution for ENM overlap between species under null hypothesis
-    ## that species' occurrences are randomly drawn from same distribution.
+## The second population has occurrences on satellite islands so let's prune those
+K2_alpha_poly[[1]] <- ms_filter_islands(input = K2_alpha_poly[[1]], min_area = 1500000000)
+    K2_spat <- SpatialPoints(K2_total_pts[, 1:2])
+    crs(K2_spat) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+K2_total_pts <- K2_total_pts[!is.na(over(K2_spat, K2_alpha_poly[[1]])), ]
+    write_delim(x = K2_total_pts, file = "niche-assessment/K2_total_ah_pts.csv", delim = ",", col_names = TRUE)
+K2_extent <- extent(K2_alpha_poly[[1]])
+crop <- crop(env2[[1]], K2_extent)
+K2_bias <- mask(crop, K2_alpha_poly[[1]])
+    crs(K2_bias) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+    writeRaster(x = K2_bias, filename = "niche-assessment/K2_masked.asc", format = "ascii", overwrite = TRUE)
 
-# A. brevirostris cluster (8) vs A. d. ravitergum cluster (5)
-K8_5 <- identity.test(species.1 = K8, species.2 = K5, env = env2, type = "glm", nreps = 500)
-    print(K8_5)
-    pdf("niche-assessment/K8_5.pdf")
-    plot(K8_5)
-    dev.off()
+# Merge into one big dataframe
+all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
 
-# A. brevirostris cluster (8) vs South paleo-island cluster (6)
-K8_6 <- identity.test(species.1 = K8, species.2 = K6, env = env2, type = "glm", nreps = 500)
-    print(K8_6)
-    pdf("niche-assessment/K8_6.pdf")
-    plot(K8_6)
-    dev.off()
-
-# A. brevirostris cluster (8) vs A. d. ignigularis cluster (7)
-K8_7 <- identity.test(species.1 = K8, species.2 = K7, env = env2, type = "glm", nreps = 500)
-    print(K8_7)
-    pdf("niche-assessment/K8_7.pdf")
-    plot(K8_7)
-    dev.off()
-
-# A. d. properus cluster (1) vs A. d. ignigularis cluster (7)
-# K1_7 <- identity.test(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K1_7)
-#     pdf("niche-assessment/K1_7.pdf")
-#     plot(K1_7)
-#     dev.off()
-
-# # A. d. dominicensis II cluster (2) vs A. d. ignigularis cluster (7)
-# K2_7 <- identity.test(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K2_7)
-#     pdf("niche-assessment/K2_7.pdf")
-#     plot(K2_7)
-#     dev.off()
-
-# # A. d. dominicensis II cluster (2) vs A. d. dominicensis I & IV cluster (3)
-# K2_3 <- identity.test(species.1 = K2, species.2 = K3, env = env2, type = "glm", nreps = 500)
-#     print(K2_3)
-#     pdf("niche-assessment/K2_3.pdf")
-#     plot(K2_3)
-#     dev.off()
-
-# # A. d. ravitergum cluster (5) vs. A. d. ignigularis cluster (7) 
-# K5_7 <- identity.test(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K5_7)
-#     pdf("niche-assessment/K5_7.pdf")
-#     plot(K5_7)
-#     dev.off()
-
-# # A. d. ravitergum cluster (5) vs. South paleo-island subsp. cluster (6)
-# K5_6 <- identity.test(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 500)
-#     print(K5_6)
-#     pdf("niche-assessment/K5_6.pdf")
-#     plot(K5_6)
-#     dev.off()
-
-# # A. d. dominicensis I & IV cluster (3) vs vs. South paleo-island subsp. cluster (6) 
-# K3_6 <- identity.test(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 500)
-#     print(K3_6)
-#     pdf("niche-assessment/K3_6.pdf")
-#     plot(K3_6)
-#     dev.off()
-
-# # Perform rangebreak tests
-
-# # A. d. properus cluster (1) vs A. d. ignigularis cluster (7)
-# K1_7.rbl <- rangebreak.linear(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K1_7.rbl)
-#     pdf("niche-assessment/K1_7-rangebreak-linear.pdf")
-#     plot(K1_7.rbl)
-#     dev.off()
-
-# K1_7.rbb <- rangebreak.blob(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K1_7.rbb)
-#     pdf("niche-assessment/K1_7-rangebreak-blob.pdf")
-#     plot(K1_7.rbb)
-#     dev.off()
-
-# # A. d. dominicensis II cluster (2) vs A. d. ignigularis cluster (7)
-# K2_7.rbl <- rangebreak.linear(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K2_7.rbl)
-#     pdf("niche-assessment/K2_7-rangebreak-linear.pdf")
-#     plot(K2_7.rbl)
-#     dev.off()
-
-# K2_7.rbb <- rangebreak.blob(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 500)
-#     print(K2_7.rbb)
-#     pdf("niche-assessment/K2_7-rangebreak-blob.pdf")
-#     plot(K2_7.rbb)
-#     dev.off()
-
-# A. d. ravitergum cluster (5) vs. A. d. ignigularis cluster (7)
-K5_7.rbl <- rangebreak.linear(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 500)
-    print(K5_7.rbl)
-    pdf("niche-assessment/K5_7-rangebreak-linear.pdf")
-    plot(K5_7.rbl)
-    dev.off()
-
-K5_7.rbb <- rangebreak.blob(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 500)
-    print(K5_7.rbb)
-    pdf("niche-assessment/K5_7-rangebreak-blob.pdf")
-    plot(K5_7.rbb)
-    dev.off()
-
-# A. d. ravitergum cluster (5) vs. South paleo-island subsp. cluster (6)
-K5_6.rbl <- rangebreak.linear(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 500)
-    print(K5_6.rbl)
-    pdf("niche-assessment/K5_6-rangebreak-linear.pdf")
-    plot(K5_6.rbl)
-    dev.off()
-
-K5_6.rbb <- rangebreak.blob(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 500)
-    print(K5_6.rbb)
-    pdf("niche-assessment/K5_6-rangebreak-blob.pdf")
-    plot(K5_6.rbb)
-    dev.off()
-
-# A. d. dominicensis I & IV cluster (3) vs vs. South paleo-island subsp. cluster (6) 
-K3_6.rbl <- rangebreak.linear(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 500)
-    print(K3_6.rbl)
-    pdf("niche-assessment/K3_6-rangebreak-linear.pdf")
-    plot(K3_6.rbl)
-    dev.off()
-
-K3_6.rbb <- rangebreak.blob(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 500)
-    print(K3_6.rbb)
-    pdf("niche-assessment/K3_6-rangebreak-blob.pdf")
-    plot(K3_6.rbb)
-    dev.off()
+# Use fauxcurrence to obtain bias-corrected background points
+faux_intra <- fauxcurrence(coords = as.data.frame(test), rast = env2[[1]])
