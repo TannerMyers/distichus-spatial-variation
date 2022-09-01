@@ -1,7 +1,7 @@
 rm(list = ls())
 
 # Set working directory
-working_dir <- getwd()
+working_dir <- "/mmfs1/home/tcm0036/distichus-spatial-variation"
 setwd(working_dir)
 
 # Load libraries
@@ -19,28 +19,6 @@ library(usdm)
 library(RStoolbox)
 library(data.table)
 library(tidyverse)
-
-# Load function from Warren et al. (2022) paper on spatial sampling bias
-bias.sample <- function(bias.raster, npoints, replace = TRUE, biased = TRUE){
-  
-  # Convert the raster to a set of points
-  bias.points <- data.frame(rasterToPoints(bias.raster))
-  
-  if(biased == TRUE){
-    # Sampling is biased
-    bias.points <- bias.points[sample(nrow(bias.points), 
-                                      size = npoints, 
-                                      prob = bias.points[,3],
-                                      replace = replace),]
-  } else {
-    # Sampling is unbiased
-    bias.points <- bias.points[sample(nrow(bias.points), 
-                                      size = npoints, 
-                                      replace = replace),]
-  }
-  
-  return(bias.points[,1:2])
-}
 
 # Directory with filtered and cleaned occurrences
 occ_dir <- paste0(working_dir, "/data/occurrences/")
@@ -71,12 +49,12 @@ env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
 
 # Load ddRAD sampling spreadsheet
 rad_data <- read_table("~/distichus-ddRAD/info/distichus-popmap-cleaned-master.tsv", col_names = TRUE)
-    rad_data[36,2] <- "1352_dom2" ## Note there is a discrepancy in how this specimen is classified between my sampling spreadsheets
+    #rad_data[36,2] <- "1352_dom2" ## Note there is a discrepancy in how this specimen is classified between my sampling spreadsheets
 cluster <- read_table("/scratch/tcm0036/distichus-ddRAD/analyses/population-structure/lea/distichus-complex-only/sNMF_K5_ancestry_coefficients_cluster-specimen-cleaned.tsv", col_names = TRUE)
 
 rad_data <- rad_data[rad_data$Sample_ID_pop %in% cluster$Sample_ID_pop, ]
     rad_data <- as_tibble(cbind(rad_data, cluster$cluster))
-    colnames(rad_data)[13] <- "snmfCluster"
+    colnames(rad_data)[12] <- "snmfCluster" 
     ## Remove duplicates
     rad_data <- as_tibble(unique(setDT(rad_data), by = 'Locality'))
 
@@ -130,6 +108,14 @@ K2_bias <- mask(crop, K2_alpha_poly[[1]])
 
 # Merge into one big dataframe
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
+    bg_input <- all_pts[, 1:3]
+    colnames(bg_input) <- c("x", "y", "species")
 
 # Use fauxcurrence to obtain bias-corrected background points
-faux_intra <- fauxcurrence(coords = as.data.frame(test), rast = env2[[1]])
+set.seed(69)
+    ## Within-species distances i.e., "intra" model
+    faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
+        save(faux_intra, file = "niche-assessment/faux_intra.RData")
+    ## Pairwise between species
+    faux_interSep <- fauxcurrence(coords = chameleons, rast = madagascar, inter.spp = TRUE, sep.inter.spp = TRUE, verbose = TRUE)
+        save(faux_interSep, file = "niche-assessment/faux_interSep.RData")
