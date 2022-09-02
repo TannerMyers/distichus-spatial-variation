@@ -180,6 +180,7 @@ elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
 env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
     ## Check rasters for same extent and resolution &
     ## set values to NA if NAs present in any layer
+    env <- crop(env, Hispaniola)
     env <- ENMTools::check.env(env)
 ```
 
@@ -599,8 +600,22 @@ knitr::kable(round(pca_env$model$loadings[, 1:5], 5))
 # |may_NDVI_mean      | -0.13553|  0.27044|  0.10093| -0.36147| -0.27689|
 ```
 
-# Use fauxcurrence package to obtain background points that have been adjusted for spatial sampling bias.
+# Use fauxcurrence package to obtain background points that have been adjusted for spatial sampling bias for Background/niche similarity tests.
 ```{r}
+# Use fauxcurrence to obtain bias-corrected background points
+set.seed(69)
+    ## Within-species distances i.e., "intra" model
+    faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
+        save(faux_intra, file = "niche-assessment/faux_intra.RData")
+    ## Pairwise between species
+    faux_interSep <- fauxcurrence(coords = chameleons, rast = madagascar, inter.spp = TRUE, sep.inter.spp = TRUE, verbose = TRUE)
+        save(faux_interSep, file = "niche-assessment/faux_interSep.RData")
+```
+
+# Thin occurrences for niche identity test. 
+```{r}
+
+
 
 ```
 

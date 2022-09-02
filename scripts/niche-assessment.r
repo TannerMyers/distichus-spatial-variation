@@ -26,6 +26,19 @@ occ_dir <- paste0(working_dir, "/data/occurrences/")
     occs_ad <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
     occs_ab <- read_csv(paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
 
+# Omit samples not from Hispaniola
+    ## To do this, we will load a shapefile of the island of Hispaniola
+    DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+    HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+    row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
+    row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
+    Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
+    Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
+
+    ## Get extent for cropping
+    limits <- extent(Hispaniola)
+
+
 # Load environmental data
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
 modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
@@ -39,6 +52,7 @@ elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
 
 ## Merge all environmental data layers into single raster stack
 env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
+    env <- crop(env, Hispaniola)
     ## Check rasters for same extent and resolution &
     ## set values to NA if NAs present in any layer
     env <- ENMTools::check.env(env)
@@ -117,5 +131,6 @@ set.seed(69)
     faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
         save(faux_intra, file = "niche-assessment/faux_intra.RData")
     ## Pairwise between species
-    faux_interSep <- fauxcurrence(coords = chameleons, rast = madagascar, inter.spp = TRUE, sep.inter.spp = TRUE, verbose = TRUE)
+    faux_interSep <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]],
+                            inter.spp = TRUE, sep.inter.spp = TRUE, verbose = TRUE)
         save(faux_interSep, file = "niche-assessment/faux_interSep.RData")
