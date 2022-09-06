@@ -53,7 +53,7 @@ elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
 ## Merge all environmental data layers into single raster stack
 env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
     env <- crop(env, Hispaniola)
-    ## Check rasters for same extent and resolution &
+    ## Check rasters for same extent and resolution and
     ## set values to NA if NAs present in any layer
     env <- ENMTools::check.env(env)
 
@@ -130,7 +130,15 @@ set.seed(69)
     ## Within-species distances i.e., "intra" model
     faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
         save(faux_intra, file = "niche-assessment/faux_intra.RData")
-    ## Pairwise between species
-    faux_interSep <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]],
-                            inter.spp = TRUE, sep.inter.spp = TRUE, verbose = TRUE)
-        save(faux_interSep, file = "niche-assessment/faux_interSep.RData")
+    
+    ## Pairwise between species pairs I will be performing niche similarity tests on
+    faux_inter_12 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "2"]), rast = env2[[1]])
+        save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
+    faux_inter_13 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "3"]), rast = env2[[1]])
+        save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
+    faux_inter_24 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "2" | bg_input$species == "4"]), rast = env2[[1]])
+        save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
+    faux_inter_34 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "4"]), rast = env2[[1]])
+        save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
+    faux_inter_35 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "5"]), rast = env2[[1]])
+        save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")

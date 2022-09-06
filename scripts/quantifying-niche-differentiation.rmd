@@ -18,6 +18,7 @@ library(raster)
 library(rgeos)
 library(sf)
 library(rmapshaper)
+library(ellipsenm)
 library(envirem)
 library(rangeBuilder)
 library(fauxcurrence)
@@ -26,27 +27,6 @@ library(usdm)
 library(RStoolbox)
 library(data.table)
 library(tidyverse)
-
-bias.sample <- function(bias.raster, npoints, replace = TRUE, biased = TRUE){
-  
-  # Convert the raster to a set of points
-  bias.points <- data.frame(rasterToPoints(bias.raster))
-  
-  if(biased == TRUE){
-    # Sampling is biased
-    bias.points <- bias.points[sample(nrow(bias.points), 
-                                      size = npoints, 
-                                      prob = bias.points[,3],
-                                      replace = replace),]
-  } else {
-    # Sampling is unbiased
-    bias.points <- bias.points[sample(nrow(bias.points), 
-                                      size = npoints, 
-                                      replace = replace),]
-  }
-  
-  return(bias.points[,1:2])
-}
 ```
 
 # Download occurrences
@@ -122,8 +102,8 @@ write_csv(occs_ab, "unfiltered_brevirostris_occurrences.csv")
 # Filter occurrences
 ```{r}
 # Load occurrences if not already loaded
-occs_ad <- read_csv("unfiltered_distichus_occurrences.csv")
-occs_ab <- read_csv("unfiltered_distichus_occurrences.csv")
+occs_ad <- read_csv(paste0(occ_dir, "unfiltered_distichus_occurrences.csv"))
+occs_ab <- read_csv(paste0(occ_dir, "unfiltered_distichus_occurrences.csv"))
 
 # Exclude occurrences without coordinates
 occs_ad <- occs_ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
@@ -139,9 +119,6 @@ occs_ad <- occs_ad[!duplicated(paste(occs_ad$longitude, occs_ad$latitude)), ]
     row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
     Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
     Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
-
-    ## Get extent for cropping
-    limits <- extent(Hispaniola)
 
     ## Convert occurrences object to SpatialPointsDataFrame
     occs_ad.spdf <- SpatialPointsDataFrame(occs_ad[,c("longitude", "latitude")], occs_ad[,c(1, 4:ncol(occs_ad))])
@@ -181,7 +158,21 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
     ## Check rasters for same extent and resolution &
     ## set values to NA if NAs present in any layer
     env <- crop(env, Hispaniola)
+    crs(env) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
     env <- ENMTools::check.env(env)
+
+width = 5
+for (i in 1:20){
+    var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
+        assign(paste0("var_", i), var)
+}
+
+# Add imputed rasters to a new raster stack
+env_imputed <- stack(var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var_9, var_10, 
+                    var_11, var_12, var_13, var_14, var_15, var_16, var_17, var_18, var_19, var_20)
+    ## Change layer names to original variable names
+    names(env_imputed) <- names(env)
+
 ```
 
 # Explore correlation in environmental data & remove collinear variables
@@ -392,9 +383,10 @@ usdm::vifstep(x = env, th = 10)
 
 # Based on these results, I am going with the following environmental variables:
 
-env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
+env2 <- env_imputed[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
             "CHELSA_bio10_15", "CHELSA_bio10_16",
             "march_EVI_mean", "may_NDVI_mean")]]
+            check.env(env2)
 ```
 
 # Load sampling information and population clustering assignment from ddRADseq data
@@ -436,9 +428,15 @@ for (k in 1:5){
     df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
         colnames(df3)[3] <- "K"
         df3$K <- as.factor(df3$K)
+        df3 <- df3[!duplicated(paste(df3$longitude, df3$latitude)), ]
     write_delim(x = df3, file = paste0("niche-assessment/", "K", k, "_total_ah_pts.csv"),
                 delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_total_pts"), df3)
+    
+    ## Thin points
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
+        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "thinned.csv"), delim = ",", col_names = TRUE)
+        assign(paste0("K", k, "_thinned"), df4)
     
     ## Create raster for background point sampling
     crop <- crop(env2[[1]], lims)
@@ -450,10 +448,14 @@ for (k in 1:5){
 
 ## The second population has occurrences on satellite islands so let's prune those
 K2_alpha_poly[[1]] <- ms_filter_islands(input = K2_alpha_poly[[1]], min_area = 1500000000)
-    K2_spat <- SpatialPoints(K2_total_pts[, 1:2])
-    crs(K2_spat) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
-K2_total_pts <- K2_total_pts[!is.na(over(K2_spat, K2_alpha_poly[[1]])), ]
+    K2_spat_tot <- SpatialPoints(K2_total_pts[, 1:2])
+    K2_spat_th <- SpatialPoints(K2_thinned[, 1:2])
+    crs(K2_spat_tot) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
+    crs(K2_spat_th) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+K2_total_pts <- K2_total_pts[!is.na(over(K2_spat_tot, K2_alpha_poly[[1]])), ]
     write_delim(x = K2_total_pts, file = "niche-assessment/K2_total_ah_pts.csv", delim = ",", col_names = TRUE)
+K2_thinned <- K2_thinned[!is.na(over(K2_spat_th, K2_alpha_poly[[1]])), ]
+    write_delim(x = K2_thinned, file = "niche-assessment/K2_thinned.csv", delim = ",", col_names = TRUE)
 K2_extent <- extent(K2_alpha_poly[[1]])
 crop <- crop(env2[[1]], K2_extent)
 K2_bias <- mask(crop, K2_alpha_poly[[1]])
@@ -465,7 +467,7 @@ K2_bias <- mask(crop, K2_alpha_poly[[1]])
 ```{r}
 # Merge into one big dataframe
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
-env_values <- raster::extract(all_pts[, c("longitude", "latitude")], x = env)
+env_values <- raster::extract(all_pts[, 1:2], x = env_imputed)
 all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
 
 bio3 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_03, fill = K)) +
@@ -607,16 +609,18 @@ set.seed(69)
     ## Within-species distances i.e., "intra" model
     faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
         save(faux_intra, file = "niche-assessment/faux_intra.RData")
-    ## Pairwise between species
-    faux_interSep <- fauxcurrence(coords = chameleons, rast = madagascar, inter.spp = TRUE, sep.inter.spp = TRUE, verbose = TRUE)
-        save(faux_interSep, file = "niche-assessment/faux_interSep.RData")
-```
-
-# Thin occurrences for niche identity test. 
-```{r}
-
-
-
+    
+    ## Pairwise between species pairs I will be performing niche similarity tests on
+    faux_inter_12 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "2"]), rast = env2[[1]])
+        save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
+    faux_inter_13 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "3"]), rast = env2[[1]])
+        save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
+    faux_inter_24 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "2" | bg_input$species == "4"]), rast = env2[[1]])
+        save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
+    faux_inter_34 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "4"]), rast = env2[[1]])
+        save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
+    faux_inter_35 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "5"]), rast = env2[[1]])
+        save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
 ```
 
 # Create ENMTools species objects
@@ -632,85 +636,52 @@ set.seed(69)
 #         assign(species$species.name, species)
 # }
 
-K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1_total_ah_pts.csv"))
+K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1thinned.csv"))
 K1$range <- K1_bias
-K1$background.points <- bias.sample(bias.raster = K1_bias, npoints = 10000, biased = TRUE)
+#K1$background.points <- bias.sample(bias.raster = K1_bias, npoints = 10000, biased = TRUE)
     check.species(K1)
-K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K2_total_ah_pts.csv"))
+K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K2thinned.csv"))
 K2$range <- K2_bias
-K2$background.points <- bias.sample(bias.raster = K2_bias, npoints = 10000, biased = TRUE)
+#K2$background.points <- bias.sample(bias.raster = K2_bias, npoints = 10000, biased = TRUE)
     check.species(K2)
-K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K3_total_ah_pts.csv"))
+K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K3thinned.csv"))
 K3$range <- K3_bias
-K3$background.points <- bias.sample(bias.raster = K3_bias, npoints = 10000, biased = TRUE)
+#K3$background.points <- bias.sample(bias.raster = K3_bias, npoints = 10000, biased = TRUE)
     check.species(K3)
-K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K4_total_ah_pts.csv"))
+K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K4thinned.csv"))
 K4$range <- K4_bias
-K4$background.points <- bias.sample(bias.raster = K4_bias, npoints = 10000, biased = TRUE)
+#K4$background.points <- bias.sample(bias.raster = K4_bias, npoints = 10000, biased = TRUE)
     check.species(K4)
-K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K5_total_ah_pts.csv"))
+K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K5thinned.csv"))
 K5$range <- K5_bias
-K5$background.points <- bias.sample(bias.raster = K5_bias, npoints = 10000, biased = TRUE)
+#K5$background.points <- bias.sample(bias.raster = K5_bias, npoints = 10000, biased = TRUE)
     check.species(K5)
 ```
 
 ```{r}
-K1_2 <- background.test(species.1 = K1, species.2 = K2, env = env2, type = "mx", test.type = "symmetric", nreps = 100, bg.source = "points")
-
+# Perform niche similarity/background tests from Warren et al. (2008)
+    ## The background test 
+    ## There are two categories: asymmetric and symmetric, which differ by the 
+    ## asymmetric test comparing observed and simulated points and the symmetric test
+    ## comparing only simulated points
+K_12_bg <- background.test(species.1 = K1, species.2 = K2, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_13_bg <- background.test(species.1 = K1, species.2 = K3, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_24_bg <- background.test(species.1 = K2, species.2 = K4, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_34_bg <- background.test(species.1 = K3, species.2 = K4, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_35_bg <- background.test(species.1 = K3, species.2 = K5, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
 ```
 
 
 ```{r}
-# # Perform niche equivalency/identity tests from Warren et al. (2008)
-#     ## The identity test takes presence points for two species and randomly reassigns them
-#     ## to each species, builds ENMs for these randomized occurrences, and, through many reps,
-#     ## estimates a probability distribution for ENM overlap between species under null hypothesis
-#     ## that species' occurrences are randomly drawn from same distribution.
+# Perform niche equivalency/identity tests from Warren et al. (2008)
+    ## The identity test takes presence points for two species and randomly reassigns them
+    ## to each species, builds ENMs for these randomized occurrences, and, through many reps,
+    ## estimates a probability distribution for ENM overlap between species under null hypothesis
+    ## that species' occurrences are randomly drawn from same distribution.
 
-# # A. d. properus cluster (1) vs A. d. ignigularis cluster (7)
-# K1_7 <- identity.test(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# # A. d. dominicensis II cluster (2) vs A. d. ignigularis cluster (7)
-# K2_7 <- identity.test(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# # A. d. dominicensis II cluster (2) vs A. d. dominicensis I & IV cluster (3)
-# K2_3 <- identity.test(species.1 = K2, species.2 = K3, env = env2, type = "glm", nreps = 100)
-
-# # A. d. ravitergum cluster (5) vs. A. d. ignigularis cluster (7) 
-# K5_7 <- identity.test(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# # A. d. ravitergum cluster (5) vs. South paleo-island subsp. cluster (6)
-# K5_6 <- identity.test(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 100)
-
-# # A. d. dominicensis I & IV cluster (3) vs vs. South paleo-island subsp. cluster (6) 
-# K3_6 <- identity.test(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 100)
-```
-
-```{r}
-# # Perform rangebreak tests
-
-# # A. d. properus cluster (1) vs A. d. ignigularis cluster (7)
-# K1_7.rbl <- rangebreak.linear(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# K1_7.rbb <- rangebreak.blob(species.1 = K1, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# # A. d. dominicensis II cluster (2) vs A. d. ignigularis cluster (7)
-# K2_7.rbl <- rangebreak.linear(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# K2_7.rbb <- rangebreak.blob(species.1 = K2, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# # A. d. ravitergum cluster (5) vs. A. d. ignigularis cluster (7)
-# K5_7.rbl <- rangebreak.linear(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# K5_7.rbb <- rangebreak.blob(species.1 = K5, species.2 = K7, env = env2, type = "glm", nreps = 100)
-
-# # A. d. ravitergum cluster (5) vs. South paleo-island subsp. cluster (6)
-# K5_6.rbl <- rangebreak.linear(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 100)
-
-# K5_6.rbb <- rangebreak.blob(species.1 = K5, species.2 = K6, env = env2, type = "glm", nreps = 100)
-
-# # A. d. dominicensis I & IV cluster (3) vs vs. South paleo-island subsp. cluster (6) 
-# K3_6.rbl <- rangebreak.linear(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 100)
-
-# K3_6.rbb <- rangebreak.blob(species.1 = K3, species.2 = K6, env = env2, type = "glm", nreps = 100)
+K_12_id <- identity.test(species.1 = K1, species.2 = K2, nreps = 5, env = env2, type = "mx")
+K_13_id <- identity.test(species.1 = K1, species.2 = K3, nreps = 5, env = env2, type = "mx")
+K_24_id <- identity.test(species.1 = K2, species.2 = K4, nreps = 5, env = env2, type = "mx")
+K_34_id <- identity.test(species.1 = K3, species.2 = K4, nreps = 5, env = env2, type = "mx")
+K_35_id <- identity.test(species.1 = K3, species.2 = K5, nreps = 5, env = env2, type = "mx")
 ```
