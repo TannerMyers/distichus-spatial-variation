@@ -133,25 +133,26 @@ set.seed(69)
     #     save(faux_intra, file = "niche-assessment/faux_intra.RData")
     
     ## Pairwise between species pairs I will be performing niche similarity tests on
-    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
-    faux_inter_12 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
+    # faux_inter_12 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    #     save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
-    faux_inter_13 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
+    # faux_inter_13 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    #     save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
-    faux_inter_24 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
+    # faux_inter_24 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    #     save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
-    faux_inter_34 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
+    # faux_inter_34 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    #     save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
-    faux_inter_35 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
+    # faux_inter_35 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    #     save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
 
     # ## Do interspecific distances between all pairs of species
-    # faux_inter_all <- fauxcurrence(coords = as.data.frame(all_pts), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    faux_inter_all <- fauxcurrence(coords = as.data.frame(all_pts), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+        save(faux_inter_all, file = "niche-assessment/faux_inter_all.RData")
