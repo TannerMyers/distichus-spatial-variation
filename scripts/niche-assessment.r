@@ -68,7 +68,7 @@ cluster <- read_table("/scratch/tcm0036/distichus-ddRAD/analyses/population-stru
 
 rad_data <- rad_data[rad_data$Sample_ID_pop %in% cluster$Sample_ID_pop, ]
     rad_data <- as_tibble(cbind(rad_data, cluster$cluster))
-    colnames(rad_data)[12] <- "snmfCluster" 
+    colnames(rad_data)[12] <- "snmfCluster"
     ## Remove duplicates
     rad_data <- as_tibble(unique(setDT(rad_data), by = 'Locality'))
 
@@ -122,23 +122,25 @@ K2_bias <- mask(crop, K2_alpha_poly[[1]])
 
 # Merge into one big dataframe
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
-    bg_input <- all_pts[, 1:3]
-    colnames(bg_input) <- c("x", "y", "species")
+    colnames(all_pts) <- c("x", "y", "species")
 
 # Use fauxcurrence to obtain bias-corrected background points
 set.seed(69)
-    ## Within-species distances i.e., "intra" model
-    faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
-        save(faux_intra, file = "niche-assessment/faux_intra.RData")
+    # ## Within-species distances i.e., "intra" model
+    faux_intra <- fauxcurrence(coords = as.data.frame(all_pts), rast = env2[[1]], inter.spp = FALSE)
+         save(faux_intra, file = "niche-assessment/faux_intra.RData")
     
     ## Pairwise between species pairs I will be performing niche similarity tests on
-    faux_inter_12 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "2"]), rast = env2[[1]])
+    faux_inter_12 <-  fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "1" | all_pts$species == "2", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
-    faux_inter_13 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "3"]), rast = env2[[1]])
+    faux_inter_13 <-  fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "1" | all_pts$species == "3", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
-    faux_inter_24 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "2" | bg_input$species == "4"]), rast = env2[[1]])
+    faux_inter_24 <- fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "2" | all_pts$species == "4", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
-    faux_inter_34 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "4"]), rast = env2[[1]])
+    faux_inter_34 <- fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "3" | all_pts$species == "4", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
-    faux_inter_35 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "5"]), rast = env2[[1]])
+    faux_inter_35 <- fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "3" | all_pts$species == "5", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
+
+    ## Do interspecific distances between all pairs of species
+    faux_inter_all <- fauxcurrence(coords = as.data.frame(all_pts), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
