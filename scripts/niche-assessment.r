@@ -35,10 +35,6 @@ occ_dir <- paste0(working_dir, "/data/occurrences/")
     Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
     Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
 
-    ## Get extent for cropping
-    limits <- extent(Hispaniola)
-
-
 # Load environmental data
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
 modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
@@ -123,6 +119,12 @@ K2_bias <- mask(crop, K2_alpha_poly[[1]])
 # Merge into one big dataframe
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
     colnames(all_pts) <- c("x", "y", "species")
+    all_pts$species <- as.character(all_pts$species)
+    all_pts$species <- replace(all_pts$species, all_pts$species == 1, "dominicensis")
+    all_pts$species <- replace(all_pts$species, all_pts$species == 2, "South island")
+    all_pts$species <- replace(all_pts$species, all_pts$species == 3, "ignigularis") 
+    all_pts$species <- replace(all_pts$species, all_pts$species == 4, "ravitergum")
+    all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
 
 # Use fauxcurrence to obtain bias-corrected background points
 set.seed(69)
@@ -131,14 +133,23 @@ set.seed(69)
          save(faux_intra, file = "niche-assessment/faux_intra.RData")
     
     ## Pairwise between species pairs I will be performing niche similarity tests on
-    faux_inter_12 <-  fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "1" | all_pts$species == "2", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
+    coords <- as.data.frame(all_pts[all_pts$species == "1" | all_pts$species == "2", ])
+    faux_inter_12 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
+
+    coords <- as.data.frame(all_pts[all_pts$species == "1" | all_pts$species == "3", ])
     faux_inter_13 <-  fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "1" | all_pts$species == "3", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
+
+    coords <- as.data.frame(all_pts[all_pts$species == "2" | all_pts$species == "4", ])
     faux_inter_24 <- fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "2" | all_pts$species == "4", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
+
+    coords <- as.data.frame(all_pts[all_pts$species == "3" | all_pts$species == "4", ])
     faux_inter_34 <- fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "3" | all_pts$species == "4", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
+
+    coords <- as.data.frame(all_pts[all_pts$species == "3" | all_pts$species == "5", ])     
     faux_inter_35 <- fauxcurrence(coords = as.data.frame(all_pts[all_pts$species == "3" | all_pts$species == "5", ]), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
 
