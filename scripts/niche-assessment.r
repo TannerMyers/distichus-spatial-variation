@@ -20,6 +20,17 @@ library(RStoolbox)
 library(data.table)
 library(tidyverse)
 
+## Load function for imputing NAs in the raster from
+## https://stackoverflow.com/questions/45641168/fill-in-gaps-e-g-not-single-cells-of-na-values-in-raster-using-a-neighborhood
+fill.na <- function(x) {
+  center = 0.5 + (width*width/2)
+  if(is.na(x)[center]) {
+    return(mean(x, na.rm = TRUE))
+  } else {
+    return(x[center])
+  }
+}
+
 # Directory with filtered and cleaned occurrences
 occ_dir <- paste0(working_dir, "/data/occurrences/")
     ## Load filtered occurrences downloaded with `spocc` R package
@@ -34,6 +45,8 @@ occ_dir <- paste0(working_dir, "/data/occurrences/")
     row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
     Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
     Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
+    ## Remove Gonave, Tortuga, and Saona
+    Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
 
 # Load environmental data
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
@@ -53,7 +66,22 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
     ## set values to NA if NAs present in any layer
     env <- ENMTools::check.env(env)
 
-env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
+width = 9
+for (i in 1:20){
+    var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
+        assign(paste0("var_", i), var)
+}
+
+# Add imputed rasters to a new raster stack
+env_imputed <- stack(var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var_9, var_10, 
+                    var_11, var_12, var_13, var_14, var_15, var_16, var_17, var_18, var_19, var_20)
+    ## Change layer names to original variable names
+    names(env_imputed) <- names(env)
+    env_imputed <- mask(env_imputed, Hispaniola)
+    env_imputed <- ENMTools::check.env(env_imputed)
+
+
+env2 <- env_imputed[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
             "CHELSA_bio10_15", "CHELSA_bio10_16",
             "march_EVI_mean", "may_NDVI_mean")]]
 
@@ -118,41 +146,41 @@ K2_bias <- mask(crop, K2_alpha_poly[[1]])
 
 # Merge into one big dataframe
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
-    colnames(all_pts) <- c("x", "y", "species")
-    all_pts$species <- as.character(all_pts$species)
-    all_pts$species <- replace(all_pts$species, all_pts$species == 1, "dominicensis")
-    all_pts$species <- replace(all_pts$species, all_pts$species == 2, "South")
-    all_pts$species <- replace(all_pts$species, all_pts$species == 3, "ignigularis") 
-    all_pts$species <- replace(all_pts$species, all_pts$species == 4, "ravitergum")
-    all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
+
+# Prepare data for fauxcurrence    
+colnames(all_pts) <- c("x", "y", "species")
+all_pts$species <- as.character(all_pts$species)
+all_pts$species <- replace(all_pts$species, all_pts$species == 1, "dominicensis")
+all_pts$species <- replace(all_pts$species, all_pts$species == 2, "South")
+all_pts$species <- replace(all_pts$species, all_pts$species == 3, "ignigularis")
+all_pts$species <- replace(all_pts$species, all_pts$species == 4, "ravitergum")
+all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
+
+K_12 <- merge(K1_bias, K2_bias)
+K_13 <- merge(K1_bias, K3_bias)
+K_24 <- merge(K2_bias, K4_bias)
+K_34 <- merge(K3_bias, K4_bias)
+K_35 <- merge(K3_bias, K5_bias)
 
 # Use fauxcurrence to obtain bias-corrected background points
 set.seed(69)
-    # ## Within-species distances i.e., "intra" model
-    # faux_intra <- fauxcurrence(coords = as.data.frame(all_pts), rast = env2[[1]], inter.spp = FALSE)
-    #     save(faux_intra, file = "niche-assessment/faux_intra.RData")
-    
-    ## Pairwise between species pairs I will be performing niche similarity tests on
-    # coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
-    # faux_inter_12 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-    #     save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
+    # Pairwise between species pairs I will be performing niche similarity tests on
+    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
+    faux_inter_12 <-  fauxcurrence(coords = coords, rast = K_12, inter.spp = TRUE, sep.inter.spp = TRUE)
+        save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
 
-    # coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
-    # faux_inter_13 <-  fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-    #     save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
+    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
+    faux_inter_13 <-  fauxcurrence(coords = coords, rast = K_13, inter.spp = TRUE, sep.inter.spp = TRUE)
+        save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
 
-    # coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
-    # faux_inter_24 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-    #     save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
+    coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
+    faux_inter_24 <- fauxcurrence(coords = coords, rast = K_24, inter.spp = TRUE, sep.inter.spp = TRUE)
+        save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
 
-    # coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
-    # faux_inter_34 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-    #     save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
+    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
+    faux_inter_34 <- fauxcurrence(coords = coords, rast = K_34, inter.spp = TRUE, sep.inter.spp = TRUE)
+        save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
 
-    # coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
-    # faux_inter_35 <- fauxcurrence(coords = coords, rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-    #     save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
-
-    # ## Do interspecific distances between all pairs of species
-    faux_inter_all <- fauxcurrence(coords = as.data.frame(all_pts), rast = env2[[1]], inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_all, file = "niche-assessment/faux_inter_all.RData")
+    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
+    faux_inter_35 <- fauxcurrence(coords = coords, rast = K_35, inter.spp = TRUE, sep.inter.spp = TRUE)
+        save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")

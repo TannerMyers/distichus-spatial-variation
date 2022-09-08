@@ -27,6 +27,29 @@ library(usdm)
 library(RStoolbox)
 library(data.table)
 library(tidyverse)
+
+## Load function for imputing NAs in the raster from
+## https://stackoverflow.com/questions/45641168/fill-in-gaps-e-g-not-single-cells-of-na-values-in-raster-using-a-neighborhood
+fill.na <- function(x) {
+  center = 0.5 + (width*width/2)
+  if(is.na(x)[center]) {
+    return(mean(x, na.rm = TRUE))
+  } else {
+    return(x[center])
+  }
+}
+```
+
+```{r}
+# Load a shapefile of the island of Hispaniola
+DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
+row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
+Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
+Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
+    ## Remove Gonave, Tortuga, and Saona
+    Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
 ```
 
 # Download occurrences
@@ -112,13 +135,8 @@ occs_ad <- occs_ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
 occs_ad <- occs_ad[!duplicated(paste(occs_ad$longitude, occs_ad$latitude)), ]
 
 # Omit samples not from Hispaniola
-    ## To do this, we will load a shapefile of the island of Hispaniola
-    DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-    HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-    row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
-    row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
-    Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
-    Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
+    ## Get extent for cropping
+    limits <- extent(Hispaniola)
 
     ## Convert occurrences object to SpatialPointsDataFrame
     occs_ad.spdf <- SpatialPointsDataFrame(occs_ad[,c("longitude", "latitude")], occs_ad[,c(1, 4:ncol(occs_ad))])
@@ -161,7 +179,7 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
     crs(env) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
     env <- ENMTools::check.env(env)
 
-width = 5
+width = 9
 for (i in 1:20){
     var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
         assign(paste0("var_", i), var)
@@ -172,7 +190,8 @@ env_imputed <- stack(var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var
                     var_11, var_12, var_13, var_14, var_15, var_16, var_17, var_18, var_19, var_20)
     ## Change layer names to original variable names
     names(env_imputed) <- names(env)
-
+    env_imputed <- mask(env_imputed, Hispaniola)
+    env_imputed <- ENMTools::check.env(env_imputed)
 ```
 
 # Explore correlation in environmental data & remove collinear variables
@@ -382,7 +401,6 @@ usdm::vifstep(x = env, th = 10)
 # 7   may_NDVI_mean 4.012991
 
 # Based on these results, I am going with the following environmental variables:
-
 env2 <- env_imputed[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
             "CHELSA_bio10_15", "CHELSA_bio10_16",
             "march_EVI_mean", "may_NDVI_mean")]]
@@ -420,6 +438,13 @@ for (k in 1:5){
     lims <- extent(poly[[1]])
         assign(paste0("K", k, "_extent"), lims)
 
+    ## Create raster for background point sampling
+    crop <- crop(env2[[1]], lims)
+    mask <- mask(crop, poly[[1]])
+    crs(mask) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+        writeRaster(x = mask, filename = paste0("niche-assessment/", "K", k, "_masked.asc"), format = "ascii", overwrite = TRUE)
+        assign(paste0("K", k, "_bias"), mask)
+
     ## Subset occurrences that fall within spatial polygon made above
     df <- occs_ad[!is.na(over(all_pts, poly[[1]])), ]
     # Combine total points
@@ -437,13 +462,6 @@ for (k in 1:5){
     df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
         write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "thinned.csv"), delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_thinned"), df4)
-    
-    ## Create raster for background point sampling
-    crop <- crop(env2[[1]], lims)
-    mask <- mask(crop, poly[[1]])
-    crs(mask) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-        writeRaster(x = mask, filename = paste0("niche-assessment/", "K", k, "_masked.asc"), format = "ascii", overwrite = TRUE)
-        assign(paste0("K", k, "_bias"), mask)
 }
 
 ## The second population has occurrences on satellite islands so let's prune those
@@ -604,57 +622,65 @@ knitr::kable(round(pca_env$model$loadings[, 1:5], 5))
 
 # Use fauxcurrence package to obtain background points that have been adjusted for spatial sampling bias for Background/niche similarity tests.
 ```{r}
+# Prepare data for fauxcurrence    
+colnames(all_pts) <- c("x", "y", "species")
+all_pts$species <- as.character(all_pts$species)
+all_pts$species <- replace(all_pts$species, all_pts$species == 1, "dominicensis")
+all_pts$species <- replace(all_pts$species, all_pts$species == 2, "South")
+all_pts$species <- replace(all_pts$species, all_pts$species == 3, "ignigularis")
+all_pts$species <- replace(all_pts$species, all_pts$species == 4, "ravitergum")
+all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
+
+K_12 <- merge(K1_bias, K2_bias)
+K_13 <- merge(K1_bias, K3_bias)
+K_24 <- merge(K2_bias, K4_bias)
+K_34 <- merge(K3_bias, K4_bias)
+K_35 <- merge(K3_bias, K5_bias)
+
 # Use fauxcurrence to obtain bias-corrected background points
 set.seed(69)
-    ## Within-species distances i.e., "intra" model
-    faux_intra <- fauxcurrence(coords = as.data.frame(bg_input), rast = env2[[1]])
-        save(faux_intra, file = "niche-assessment/faux_intra.RData")
-    
-    ## Pairwise between species pairs I will be performing niche similarity tests on
-    faux_inter_12 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "2"]), rast = env2[[1]])
+    # Pairwise between species pairs I will be performing niche similarity tests on
+    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
+    faux_inter_12 <-  fauxcurrence(coords = coords, rast = K_12, inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
-    faux_inter_13 <-  fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "1" | bg_input$species == "3"]), rast = env2[[1]])
+
+    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
+    faux_inter_13 <-  fauxcurrence(coords = coords, rast = K_13, inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
-    faux_inter_24 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "2" | bg_input$species == "4"]), rast = env2[[1]])
+
+    coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
+    faux_inter_24 <- fauxcurrence(coords = coords, rast = K_24, inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
-    faux_inter_34 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "4"]), rast = env2[[1]])
+
+    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
+    faux_inter_34 <- fauxcurrence(coords = coords, rast = K_34, inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
-    faux_inter_35 <- fauxcurrence(coords = as.data.frame(bg_input[bg_input$species == "3" | bg_input$species == "5"]), rast = env2[[1]])
+
+    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
+    faux_inter_35 <- fauxcurrence(coords = coords, rast = K_35, inter.spp = TRUE, sep.inter.spp = TRUE)
         save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
 ```
 
 # Create ENMTools species objects
 ```{r}
-# for (k in c(1:5)){             ## FOR-LOOP NEEDS FIXING TO RUN
-#     species <- enmtools.species(species.name = paste0("K", k),
-#                             presence.points = read.csv(paste0("niche-assessment/K", k, "_total_ah_pts.csv")))
-#     species$background.points <- bias.sample(bias.layer = paste0("K", k, "_bias"), npoints = 50000)
-#     # species$range <- background.buffer(species$presence.points, 50000, mask = env2, buffer.type = "convhull")
-#     # species$background.points <- background.points.buffer(points = species$presence.points,
-#     #                                 radius = 1000, n = 1000, mask = env2[[1]])
-#     print(check.species(species))
-#         assign(species$species.name, species)
-# }
-
 K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1thinned.csv"))
-K1$range <- K1_bias
-#K1$background.points <- bias.sample(bias.raster = K1_bias, npoints = 10000, biased = TRUE)
+    K1$range <- K1_bias
     check.species(K1)
+
 K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K2thinned.csv"))
-K2$range <- K2_bias
-#K2$background.points <- bias.sample(bias.raster = K2_bias, npoints = 10000, biased = TRUE)
+    K2$range <- K2_bias
     check.species(K2)
+
 K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K3thinned.csv"))
-K3$range <- K3_bias
-#K3$background.points <- bias.sample(bias.raster = K3_bias, npoints = 10000, biased = TRUE)
+    K3$range <- K3_bias
     check.species(K3)
+
 K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K4thinned.csv"))
-K4$range <- K4_bias
-#K4$background.points <- bias.sample(bias.raster = K4_bias, npoints = 10000, biased = TRUE)
+    K4$range <- K4_bias
     check.species(K4)
+
 K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K5thinned.csv"))
-K5$range <- K5_bias
-#K5$background.points <- bias.sample(bias.raster = K5_bias, npoints = 10000, biased = TRUE)
+    K5$range <- K5_bias
     check.species(K5)
 ```
 
@@ -679,9 +705,9 @@ K_35_bg <- background.test(species.1 = K3, species.2 = K5, env = env2, type = "m
     ## estimates a probability distribution for ENM overlap between species under null hypothesis
     ## that species' occurrences are randomly drawn from same distribution.
 
-K_12_id <- identity.test(species.1 = K1, species.2 = K2, nreps = 5, env = env2, type = "mx")
-K_13_id <- identity.test(species.1 = K1, species.2 = K3, nreps = 5, env = env2, type = "mx")
-K_24_id <- identity.test(species.1 = K2, species.2 = K4, nreps = 5, env = env2, type = "mx")
-K_34_id <- identity.test(species.1 = K3, species.2 = K4, nreps = 5, env = env2, type = "mx")
-K_35_id <- identity.test(species.1 = K3, species.2 = K5, nreps = 5, env = env2, type = "mx")
+K_12_id <- identity.test(species.1 = K1, species.2 = K2, nreps = 100, env = env2, type = "mx")
+K_13_id <- identity.test(species.1 = K1, species.2 = K3, nreps = 100, env = env2, type = "mx")
+K_24_id <- identity.test(species.1 = K2, species.2 = K4, nreps = 100, env = env2, type = "mx")
+K_34_id <- identity.test(species.1 = K3, species.2 = K4, nreps = 100, env = env2, type = "mx")
+K_35_id <- identity.test(species.1 = K3, species.2 = K5, nreps = 100, env = env2, type = "mx")
 ```
