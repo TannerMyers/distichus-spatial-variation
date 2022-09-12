@@ -164,23 +164,87 @@ K_35 <- merge(K3_bias, K5_bias)
 
 # Use fauxcurrence to obtain bias-corrected background points
 set.seed(69)
-    # Pairwise between species pairs I will be performing niche similarity tests on
-    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
-    faux_inter_12 <-  fauxcurrence(coords = coords, rast = K_12, inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
+    # # Pairwise between species pairs I will be performing niche similarity tests on
+    # coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
+    # faux_inter_12 <-  fauxcurrence(coords = coords, rast = K_12, inter.spp = TRUE, sep.inter.spp = TRUE, allow.ident.conspec = FALSE)
+    #     save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
-    faux_inter_13 <-  fauxcurrence(coords = coords, rast = K_13, inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
+    # faux_inter_13 <-  fauxcurrence(coords = coords, rast = K_13, inter.spp = TRUE, sep.inter.spp = TRUE, allow.ident.conspec = FALSE)
+    #     save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
-    faux_inter_24 <- fauxcurrence(coords = coords, rast = K_24, inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
+    # faux_inter_24 <- fauxcurrence(coords = coords, rast = K_24, inter.spp = TRUE, sep.inter.spp = TRUE, allow.ident.conspec = FALSE)
+    #     save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
-    faux_inter_34 <- fauxcurrence(coords = coords, rast = K_34, inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
+    # faux_inter_34 <- fauxcurrence(coords = coords, rast = K_34, inter.spp = TRUE, sep.inter.spp = TRUE, allow.ident.conspec = FALSE)
+    #     save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
 
-    coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
-    faux_inter_35 <- fauxcurrence(coords = coords, rast = K_35, inter.spp = TRUE, sep.inter.spp = TRUE)
-        save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
+    # coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])
+    # faux_inter_35 <- fauxcurrence(coords = coords, rast = K_35, inter.spp = TRUE, sep.inter.spp = TRUE, allow.ident.conspec = FALSE)
+    #     save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
+    
+load("niche-assessment/faux_inter_12.RData")
+load("niche-assessment/faux_inter_13.RData")
+load("niche-assessment/faux_inter_24.RData")
+load("niche-assessment/faux_inter_34.RData")
+load("niche-assessment/faux_inter_35.RData")
+
+# Create ENMTools species objects
+K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1thinned.csv"))
+    K1$range <- K1_bias # or `raster(niche-assessment/K1_masked.asc)`
+    K1$background.points <- faux_inter_12$points[faux_inter_12$points$species == "dominicensis",]
+    check.species(K1)
+
+K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K2thinned.csv"))
+    K2$range <- K2_bias
+    K2$background.points <- faux_inter_12$points[faux_inter_12$points$species == "South",]
+    check.species(K2)
+
+K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K3thinned.csv"))
+    K3$range <- K3_bias
+    K3$background.points <- faux_inter_13$points[faux_inter_13$points$species == "ignigularis",]
+    check.species(K3)
+
+K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K4thinned.csv"))
+    K4$range <- K4_bias
+    K4$background.points <- faux_inter_24$points[faux_inter_24$points$species == "ravitergum",]
+    check.species(K4)
+
+K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K5thinned.csv"))
+    K5$range <- K5_bias
+    K5$background.points <- faux_inter_35$points[faux_inter_35$points$species == "properus",]
+    check.species(K5)
+
+# Perform niche equivalency/identity tests from Warren et al. (2008)
+    ## The identity test takes presence points for two species and randomly reassigns them
+    ## to each species, builds ENMs for these randomized occurrences, and, through many reps,
+    ## estimates a probability distribution for ENM overlap between species under null hypothesis
+    ## that species' occurrences are randomly drawn from same distribution.
+
+K_12_id <- identity.test(species.1 = K1, species.2 = K2, nreps = 100, env = env2, type = "mx")
+    pdf("niche-assessment/K_1_2.pdf")
+        plot(K_12_id)
+    dev.off()
+    save(K_12_id, file = "niche-assessment/K_1_2_ID.RData")
+K_13_id <- identity.test(species.1 = K1, species.2 = K3, nreps = 100, env = env2, type = "mx")
+    pdf("niche-assessment/K_1_3.pdf")
+        plot(K_13_id)
+    dev.off()
+    save(K_13_id, file = "niche-assessment/K_1_3_ID.RData")
+K_24_id <- identity.test(species.1 = K2, species.2 = K4, nreps = 100, env = env2, type = "mx")
+    pdf("niche-assessment/K_2_4.pdf")
+        plot(K_24_id)
+    dev.off()
+    save(K_24_id, file = "niche-assessment/K_2_4_ID.RData")
+K_34_id <- identity.test(species.1 = K3, species.2 = K4, nreps = 100, env = env2, type = "mx")
+    pdf("niche-assessment/K_3_4.pdf")
+        plot(K_34_id)
+    dev.off()
+    save(K_34_id, file = "niche-assessment/K_3_4_ID.RData")
+K_35_id <- identity.test(species.1 = K3, species.2 = K5, nreps = 100, env = env2, type = "mx")
+    pdf("niche-assessment/K_3_5.pdf")
+        plot(K_35_id)
+    dev.off()
+    save(K_35_id, file = "niche-assessment/K_3_5_ID.RData")
