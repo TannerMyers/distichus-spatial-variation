@@ -13,6 +13,7 @@ library(sf)
 library(rmapshaper)
 library(envirem)
 library(rangeBuilder)
+library(ellipsenm)
 library(fauxcurrence)
 library(ENMTools)
 library(usdm)
@@ -35,18 +36,16 @@ fill.na <- function(x) {
 occ_dir <- paste0(working_dir, "/data/occurrences/")
     ## Load filtered occurrences downloaded with `spocc` R package
     occs_ad <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
-    occs_ab <- read_csv(paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
 
-# Omit samples not from Hispaniola
-    ## To do this, we will load a shapefile of the island of Hispaniola
-    DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-    HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-    row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
-    row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
-    Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
-    Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
-    ## Remove Gonave, Tortuga, and Saona
-    Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
+# Load a shapefile of the island of Hispaniola
+DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
+row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
+Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
+Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
+## Remove Gonave, Tortuga, and Saona
+Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
 
 # Load environmental data
 chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
@@ -112,6 +111,13 @@ for (k in 1:5){
     lims <- extent(poly[[1]])
         assign(paste0("K", k, "_extent"), lims)
 
+    ## Create raster for background point sampling
+    crop <- crop(env2[[1]], lims)
+    mask <- mask(crop, poly[[1]])
+    crs(mask) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+        writeRaster(x = mask, filename = paste0("niche-assessment/", "K", k, "_masked.asc"), format = "ascii", overwrite = TRUE)
+        assign(paste0("K", k, "_bias"), mask)
+
     ## Subset occurrences that fall within spatial polygon made above
     df <- occs_ad[!is.na(over(all_pts, poly[[1]])), ]
     # Combine total points
@@ -120,16 +126,15 @@ for (k in 1:5){
     df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
         colnames(df3)[3] <- "K"
         df3$K <- as.factor(df3$K)
+        df3 <- df3[!duplicated(paste(df3$longitude, df3$latitude)), ]
     write_delim(x = df3, file = paste0("niche-assessment/", "K", k, "_total_ah_pts.csv"),
                 delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_total_pts"), df3)
     
-    ## Create raster for background point sampling
-    crop <- crop(env2[[1]], lims)
-    mask <- mask(crop, poly[[1]])
-    crs(mask) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-        writeRaster(x = mask, filename = paste0("niche-assessment/", "K", k, "_masked.asc"), format = "ascii", overwrite = TRUE)
-        assign(paste0("K", k, "_bias"), mask)
+    ## Thin points
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
+        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "thinned.csv"), delim = ",", col_names = TRUE)
+        assign(paste0("K", k, "_thinned"), df4)
 }
 
 ## The second population has occurrences on satellite islands so let's prune those
@@ -192,27 +197,27 @@ load("niche-assessment/faux_inter_34.RData")
 load("niche-assessment/faux_inter_35.RData")
 
 # Create ENMTools species objects
-K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1thinned.csv"))
+K1 <- enmtools.species(species.name = "K1", presence.points = K1_thinned) # presence.points = read.csv("niche-assessment/K1thinned.csv"))
     K1$range <- K1_bias # or `raster(niche-assessment/K1_masked.asc)`
     K1$background.points <- faux_inter_12$points[faux_inter_12$points$species == "dominicensis",]
     check.species(K1)
 
-K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K2thinned.csv"))
+K2 <- enmtools.species(species.name = "K2", presence.points = K2_thinned) # presence.points = read.csv("niche-assessment/K2thinned.csv"))
     K2$range <- K2_bias
     K2$background.points <- faux_inter_12$points[faux_inter_12$points$species == "South",]
     check.species(K2)
 
-K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K3thinned.csv"))
+K3 <- enmtools.species(species.name = "K3", presence.points = K3_thinned) # presence.points = read.csv("niche-assessment/K3thinned.csv"))
     K3$range <- K3_bias
     K3$background.points <- faux_inter_13$points[faux_inter_13$points$species == "ignigularis",]
     check.species(K3)
 
-K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K4thinned.csv"))
+K4 <- enmtools.species(species.name = "K4", presence.points = K4_thinned) # presence.points = read.csv("niche-assessment/K4thinned.csv"))
     K4$range <- K4_bias
     K4$background.points <- faux_inter_24$points[faux_inter_24$points$species == "ravitergum",]
     check.species(K4)
 
-K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K5thinned.csv"))
+K5 <- enmtools.species(species.name = "K5", presence.points = K5_thinned) # presence.points = read.csv("niche-assessment/K5thinned.csv"))
     K5$range <- K5_bias
     K5$background.points <- faux_inter_35$points[faux_inter_35$points$species == "properus",]
     check.species(K5)
