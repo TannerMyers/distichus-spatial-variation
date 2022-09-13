@@ -28,16 +28,14 @@ library(RStoolbox)
 library(data.table)
 library(tidyverse)
 
-## Load function for imputing NAs in the raster from
-## https://stackoverflow.com/questions/45641168/fill-in-gaps-e-g-not-single-cells-of-na-values-in-raster-using-a-neighborhood
-fill.na <- function(x) {
-  center = 0.5 + (width*width/2)
-  if(is.na(x)[center]) {
-    return(mean(x, na.rm = TRUE))
-  } else {
-    return(x[center])
-  }
-}
+# Load functions
+load("scripts/fill.NA.r")
+load("scripts/trim.occ.r")
+load("scripts/mo.metric.r")
+load("scripts/rtr.r")
+load("scripts/rtr.bias.r")
+load("scripts/rtr.bias.map.r")
+load("scripts/RTRsignificance.r")
 ```
 
 ```{r}
@@ -666,7 +664,8 @@ all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
         load("niche-assessment/faux_inter_35.RData")
 ```
 
-# Create ENMTools species objects
+# Run ENMTools niche assessment tests
+First, I have to create ENMTools species objects:
 ```{r}
 K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1thinned.csv"))
     K1$range <- K1_bias # or `raster(niche-assessment/K1_masked.asc)`
@@ -720,4 +719,9 @@ K_13_id <- identity.test(species.1 = K1, species.2 = K3, nreps = 100, env = env2
 K_24_id <- identity.test(species.1 = K2, species.2 = K4, nreps = 100, env = env2, type = "mx")
 K_34_id <- identity.test(species.1 = K3, species.2 = K4, nreps = 100, env = env2, type = "mx")
 K_35_id <- identity.test(species.1 = K3, species.2 = K5, nreps = 100, env = env2, type = "mx")
+```
+
+
+```{r}
+
 ```
