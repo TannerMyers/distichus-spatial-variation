@@ -29,25 +29,21 @@ library(data.table)
 library(tidyverse)
 
 # Load functions
-load("scripts/fill.NA.r")
-load("scripts/trim.occ.r")
-load("scripts/mo.metric.r")
-load("scripts/rtr.r")
-load("scripts/rtr.bias.r")
-load("scripts/rtr.bias.map.r")
-load("scripts/RTRsignificance.r")
+source("scripts/fill.NA.r")
 ```
 
 ```{r}
 # Load a shapefile of the island of Hispaniola
-DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
-row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
-Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
-Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
-    ## Remove Gonave, Tortuga, and Saona
-    Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
+# DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+# HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
+#     row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
+#     row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
+# Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
+#     Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
+#     ## Remove Gonave, Tortuga, and Saona
+#     Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
+# shapefile(x = Hispaniola, file = paste0(working_dir, "/data/shape-files/Hispaniola.shp")
+Hispaniola <- readOGR(paste0(working_dir, "/data/shape-files/Hispaniola.shp"))
 ```
 
 # Download occurrences
@@ -190,6 +186,13 @@ env_imputed <- stack(var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var
     names(env_imputed) <- names(env)
     env_imputed <- mask(env_imputed, Hispaniola)
     env_imputed <- ENMTools::check.env(env_imputed)
+
+# Save imputed variables to a new directory # NOT RUN YET
+    dir.create(paste0(working_dir, "/data/env_imputed"))
+
+    lapply(names(env_imputed), function(x) {
+        writeRaster(env_imputed[[x]], paste0(working_dir, "data/env_imputed", x, ".asc"), overwrite = TRUE)
+    })
 ```
 
 # Explore correlation in environmental data & remove collinear variables
