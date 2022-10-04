@@ -177,7 +177,7 @@ env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
     crs(env) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
     env <- ENMTools::check.env(env)
 
-width = 9
+width <- 9
 for (i in 1:20){
     var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
         assign(paste0("var_", i), var)
