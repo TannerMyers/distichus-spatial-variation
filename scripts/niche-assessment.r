@@ -5,7 +5,6 @@ working_dir <- "/mmfs1/home/tcm0036/distichus-spatial-variation"
 setwd(working_dir)
 
 # Load libraries
-library(spocc)
 library(sp)
 library(raster)
 library(rgeos)
@@ -21,65 +20,10 @@ library(RStoolbox)
 library(data.table)
 library(tidyverse)
 
-## Load function for imputing NAs in the raster from
-## https://stackoverflow.com/questions/45641168/fill-in-gaps-e-g-not-single-cells-of-na-values-in-raster-using-a-neighborhood
-fill.na <- function(x) {
-  center = 0.5 + (width*width/2)
-  if(is.na(x)[center]) {
-    return(mean(x, na.rm = TRUE))
-  } else {
-    return(x[center])
-  }
-}
-
-# Directory with filtered and cleaned occurrences
-occ_dir <- paste0(working_dir, "/data/occurrences/")
-    ## Load filtered occurrences downloaded with `spocc` R package
-    occs_ad <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
-
-# Load a shapefile of the island of Hispaniola
-DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
-row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
-Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
-Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
-## Remove Gonave, Tortuga, and Saona
-Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
-
-# Load environmental data
-chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
-modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
-## These raster stacks have different extents
-    ## Since the extent of modis_vi fits within chelsa_clim's extent, crop chelsa_clim
-    chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
-    chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
-
-## Now, load elevational data that has already been adjusted to the MODIS variable extent
-elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
-
-## Merge all environmental data layers into single raster stack
-env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
-    env <- crop(env, Hispaniola)
-    ## Check rasters for same extent and resolution and
-    ## set values to NA if NAs present in any layer
-    env <- ENMTools::check.env(env)
-
-width = 9
-for (i in 1:20){
-    var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
-        assign(paste0("var_", i), var)
-}
-
 # Add imputed rasters to a new raster stack
-env_imputed <- stack(var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var_9, var_10, 
-                    var_11, var_12, var_13, var_14, var_15, var_16, var_17, var_18, var_19, var_20)
-    ## Change layer names to original variable names
-    names(env_imputed) <- names(env)
-    env_imputed <- mask(env_imputed, Hispaniola)
-    env_imputed <- ENMTools::check.env(env_imputed)
+env_imputed <- raster::stack(list.files(path = "data/env_imputed", pattern = ".asc", full.names = TRUE))
 
-
+# Subset rasters left after tests for collinearity
 env2 <- env_imputed[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
             "CHELSA_bio10_15", "CHELSA_bio10_16",
             "march_EVI_mean", "may_NDVI_mean")]]
