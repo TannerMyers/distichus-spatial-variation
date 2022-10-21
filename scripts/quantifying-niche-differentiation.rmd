@@ -219,18 +219,20 @@ cor <- raster.cor.plot(env)
     ## by finding a pair of variables with a maximum linear correlation and excludes
     ## the one with the greater VIF until no variable with a high correlation coefficient
     ## with other variables remains
-usdm::vifcor(x = env, th = 0.9)
+vifcor <- usdm::vifcor(x = env, th = 0.9)
+    print(vifcor)
 
     ## `vifstep` function of the `usdm` package estimates VIFs for a Raster Stack
     ## all at once, excluding the one with the highest VIF, repeating until no variables
     ## with VIF higher than th remains
-usdm::vifstep(x = env, th = 10)
+vifstep <- usdm::vifstep(x = env, th = 10)
+    print(vifstep)
 
 # Based on these results, I am going with the following environmental variables:
-env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04", "CHELSA_bio10_05",
+env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04",
             "CHELSA_bio10_15", "CHELSA_bio10_16",
             "march_EVI_mean", "may_NDVI_mean")]]
-env_2 <- ENMTools::check.env(env)
+    ENMTools::check.env(env2)
 ```
 
 # Load sampling information and population clustering assignment from ddRADseq data
@@ -264,13 +266,6 @@ for (k in 1:5){
     lims <- extent(poly[[1]])
         assign(paste0("K", k, "_extent"), lims)
 
-    ## Create raster for background point sampling
-    crop <- crop(env2[[1]], lims)
-    mask <- mask(crop, poly[[1]])
-    crs(mask) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-        writeRaster(x = mask, filename = paste0("niche-assessment/", "K", k, "_masked.asc"), format = "ascii", overwrite = TRUE)
-        assign(paste0("K", k, "_bias"), mask)
-
     ## Subset occurrences that fall within spatial polygon made above
     df <- occs_ad[!is.na(over(all_pts, poly[[1]])), ]
     # Combine total points
@@ -280,13 +275,13 @@ for (k in 1:5){
         colnames(df3)[3] <- "K"
         df3$K <- as.factor(df3$K)
         df3 <- df3[!duplicated(paste(df3$longitude, df3$latitude)), ]
-    write_delim(x = df3, file = paste0("niche-assessment/", "K", k, "_total_ah_pts.csv"),
+    write_delim(x = df3, file = paste0("niche-assessment/", "K_", k, "_total_pts.csv"),
                 delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_total_pts"), df3)
     
     ## Thin points
     df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
-        write_delim(x = df4, file = paste0("niche-assessment/", "K", k, "thinned.csv"), delim = ",", col_names = TRUE)
+        write_delim(x = df4, file = paste0("niche-assessment/", "K_", k, "_thinned.csv"), delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_thinned"), df4)
 }
 
@@ -297,22 +292,17 @@ K2_alpha_poly[[1]] <- ms_filter_islands(input = K2_alpha_poly[[1]], min_area = 1
     crs(K2_spat_tot) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
     crs(K2_spat_th) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 K2_total_pts <- K2_total_pts[!is.na(over(K2_spat_tot, K2_alpha_poly[[1]])), ]
-    write_delim(x = K2_total_pts, file = "niche-assessment/K2_total_ah_pts.csv", delim = ",", col_names = TRUE)
+    write_delim(x = K2_total_pts, file = "niche-assessment/K_2_total_pts.csv", delim = ",", col_names = TRUE)
 K2_thinned <- K2_thinned[!is.na(over(K2_spat_th, K2_alpha_poly[[1]])), ]
-    write_delim(x = K2_thinned, file = "niche-assessment/K2_thinned.csv", delim = ",", col_names = TRUE)
-K2_extent <- extent(K2_alpha_poly[[1]])
-crop <- crop(env2[[1]], K2_extent)
-K2_bias <- mask(crop, K2_alpha_poly[[1]])
-    crs(K2_bias) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-    writeRaster(x = K2_bias, filename = "niche-assessment/K2_masked.asc", format = "ascii", overwrite = TRUE)
+    write_delim(x = K2_thinned, file = "niche-assessment/K_2_thinned.csv", delim = ",", col_names = TRUE)
 ```
 
 # Explore univariate distributions of environmental variables
 ```{r}
 # Merge into one big dataframe
 all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
-env_values <- raster::extract(all_pts[, 1:2], x = env_imputed)
-all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
+    env_values <- raster::extract(all_pts[, 1:2], x = env)
+    all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
 
 bio3 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_03, fill = K)) +
     geom_violin() +
@@ -493,40 +483,78 @@ all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
 ```
 
 # Run ENMTools niche assessment tests
-First, I have to create ENMTools species objects:
+# (1) Create ENMTools species objects:
 ```{r}
-K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K1thinned.csv"))
-    K1$range <- K1_bias # or `raster(niche-assessment/K1_masked.asc)`
-    K1$background.points <- faux_inter_12$points[faux_inter_12$points$species == "dominicensis",]
+K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K_1_thinned.csv"))
+    K1$range <- background.raster.buffer(K1$presence.points, radius = 50000, mask = env2[[1]])
+    K1$background.points <- background.buffer(points = K1$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
     check.species(K1)
 
-K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K2thinned.csv"))
-    K2$range <- K2_bias
-    K2$background.points <- faux_inter_12$points[faux_inter_12$points$species == "South",]
+K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K_2_thinned.csv"))
+    K2$range <- background.raster.buffer(K2$presence.points, radius = 50000, mask = env2[[1]])
+    K2$background.points <- background.buffer(points = K2$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
     check.species(K2)
 
-K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K3thinned.csv"))
-    K3$range <- K3_bias
-    K3$background.points <- faux_inter_13$points[faux_inter_13$points$species == "ignigularis",]
+K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K_3_thinned.csv"))
+    K3$range <- background.raster.buffer(K3$presence.points, radius = 50000, mask = env2[[1]])
+    K3$background.points <-background.buffer(points = K3$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
     check.species(K3)
 
-K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K4thinned.csv"))
-    K4$range <- K4_bias
-    K4$background.points <- faux_inter_24$points[faux_inter_24$points$species == "ravitergum",]
+K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K_4_thinned.csv"))
+    K4$range <- background.raster.buffer(K4$presence.points, radius = 50000, mask = env2[[1]])
+    K4$background.points <- background.buffer(points = K4$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 1000, mask = env2[[1]])
     check.species(K4)
 
-K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K5thinned.csv"))
-    K5$range <- K5_bias
-    K5$background.points <- faux_inter_35$points[faux_inter_35$points$species == "properus",]
+K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K_5_thinned.csv"))
+    K5$range <- background.raster.buffer(K5$presence.points, radius = 50000, mask = env2[[1]])
+    K5$background.points <- background.buffer(points = K5$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 1000, mask = env2[[1]])
     check.species(K5)
 ```
 
+# Perform rangebreak blob tests
 ```{r}
+## Eastern A. d. dominicensis vs western A. d. dominicensis and South paleo-island
+K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, type = "mx", nreps = 1000)
+    png("niche-assessment/K_1_2_rbb.png")
+        plot(K1K2.rbb)
+    dev.off()
+    save(K1K2.rbb, file = "niche-assessment/K1_K2.rbb")
+
+## Eastern A. d. dominicensis vs A. d. ignigularis
+K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, type = "mx", nreps = 1000) 
+    png("niche-assessment/K_1_3_rbb.png")
+        plot(K1K3.rbb)
+    dev.off()
+    save(K1K3.rbb, file = "niche-assessment/K1_K3.rbb")
+
+## A. d. ignigularis vs A. d. properus
+K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, type = "mx", nreps = 1000)
+    png("niche-assessment/K_3_5_rbb.png")
+        plot(K3K5.rbb)
+    dev.off()
+    save(K3K5.rbb, file = "niche-assessment/K3K5.rbb")
+
+## A. d. ignigularis vs A. d. ravitergum
+K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, type = "mx", nreps = 1000)
+    png("niche-assessment/K_3_4_rbb.png")
+        plot(K3K4.rbb)
+    dev.off()
+    save(K3K4.rbb, file = "niche-assessment/K3K4.rbb")
+
+## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
+K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, type = "mx", nreps = 1000)
+    png("niche-assessment/K_4_2_rbb.png")
+        plot(K4K2.rbb)
+    dev.off()
+    save(K4K2.rbb, file = "niche-assessment/K4K2.rbb")
+```
+
 # Perform niche similarity/background tests from Warren et al. (2008)
     ## The background test 
     ## There are two categories: asymmetric and symmetric, which differ by the 
     ## asymmetric test comparing observed and simulated points and the symmetric test
     ## comparing only simulated points
+```{r}
 K_12_bg <- background.test(species.1 = K1, species.2 = K2, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
 K_13_bg <- background.test(species.1 = K1, species.2 = K3, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
 K_24_bg <- background.test(species.1 = K2, species.2 = K4, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
@@ -547,9 +575,4 @@ K_13_id <- identity.test(species.1 = K1, species.2 = K3, nreps = 100, env = env2
 K_24_id <- identity.test(species.1 = K2, species.2 = K4, nreps = 100, env = env2, type = "mx")
 K_34_id <- identity.test(species.1 = K3, species.2 = K4, nreps = 100, env = env2, type = "mx")
 K_35_id <- identity.test(species.1 = K3, species.2 = K5, nreps = 100, env = env2, type = "mx")
-```
-
-
-```{r}
-
 ```
