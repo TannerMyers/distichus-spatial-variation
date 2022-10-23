@@ -40,13 +40,16 @@ K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-as
     K5$background.points <- background.buffer(points = K5$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 1000, mask = env2[[1]])
     check.species(K5)
 
+####################################################################################################
+# Run rangebreak tests
+
 # Eastern A. d. dominicensis vs western A. d. dominicensis and South paleo-island
 K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "mx", nreps = 1000)
     png("niche-assessment/K_1_2_rbb.png")
         plot(K1K2.rbb)
     dev.off()
     print(summary(K1K2.rbb))
-    save(K1K2.rbb, file = "niche-assessment/K1K2.rbb")
+    save(K1K2.rbb, file = "niche-assessment/K1K2.rbb.RData")
 
 ## Eastern A. d. dominicensis vs A. d. ignigularis
 K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000) 
@@ -54,7 +57,7 @@ K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "
         plot(K1K3.rbb)
     dev.off()
     print(summary(K1K3.rbb))
-    save(K1K3.rbb, file = "niche-assessment/K1K3.rbb")
+    save(K1K3.rbb, file = "niche-assessment/K1K3.rbb.RData")
 
 # ## A. d. ignigularis vs A. d. properus
 K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "mx", nreps = 1000)
@@ -62,7 +65,7 @@ K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "
         plot(K3K5.rbb)
     dev.off()
     print(summary(K3K5.rbb))
-    save(K3K5.rbb, file = "niche-assessment/K3K5.rbb")
+    save(K3K5.rbb, file = "niche-assessment/K3K5.rbb.RData")
 
 # ## A. d. ignigularis vs A. d. ravitergum
 K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "mx", nreps = 1000)
@@ -70,7 +73,7 @@ K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "
         plot(K3K4.rbb)
     dev.off()
     print(summary(K3K4.rbb))
-    save(K3K4.rbb, file = "niche-assessment/K3K4.rbb")
+    save(K3K4.rbb, file = "niche-assessment/K3K4.rbb.RData")
 
 ## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
 K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000)
@@ -78,4 +81,4 @@ K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "
         plot(K4K2.rbb)
     dev.off()
     print(summary(K4K2.rbb))
-    save(K4K2.rbb, file = "niche-assessment/K4K2.rbb")
+    save(K4K2.rbb, file = "niche-assessment/K4K2.rbb.RData")
