@@ -44,7 +44,9 @@ K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-as
 # Run rangebreak tests
 
 # Eastern A. d. dominicensis vs western A. d. dominicensis and South paleo-island
-K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "mx", nreps = 1000)
+K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK2/")
     png("niche-assessment/K_1_2_rbb.png")
         plot(K1K2.rbb)
     dev.off()
@@ -52,7 +54,9 @@ K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "
     save(K1K2.rbb, file = "niche-assessment/K1K2.rbb.RData")
 
 ## Eastern A. d. dominicensis vs A. d. ignigularis
-K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000) 
+K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK3/")
     png("niche-assessment/K_1_3_rbb.png")
         plot(K1K3.rbb)
     dev.off()
@@ -60,7 +64,9 @@ K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "
     save(K1K3.rbb, file = "niche-assessment/K1K3.rbb.RData")
 
 # ## A. d. ignigularis vs A. d. properus
-K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "mx", nreps = 1000)
+K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK5/")
     png("niche-assessment/K_3_5_rbb.png")
         plot(K3K5.rbb)
     dev.off()
@@ -68,7 +74,9 @@ K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "
     save(K3K5.rbb, file = "niche-assessment/K3K5.rbb.RData")
 
 # ## A. d. ignigularis vs A. d. ravitergum
-K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "mx", nreps = 1000)
+K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK4/")
     png("niche-assessment/K_3_4_rbb.png")
         plot(K3K4.rbb)
     dev.off()
@@ -76,7 +84,9 @@ K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "
     save(K3K4.rbb, file = "niche-assessment/K3K4.rbb.RData")
 
 ## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
-K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000)
+K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vK2/")
     png("niche-assessment/K_4_2_rbb.png")
         plot(K4K2.rbb)
     dev.off()

@@ -28,7 +28,9 @@ K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-as
 ####################################################################################################
 # Run rangebreak tests
 ## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
-K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000)
+K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vK2/")
     png("niche-assessment/K_4_2_rbb.png")
         plot(K4K2.rbb)
     dev.off()

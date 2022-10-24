@@ -27,7 +27,9 @@ K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-as
 ####################################################################################################
 # Run rangebreak tests
 ## Eastern A. d. dominicensis vs A. d. ignigularis
-K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000) 
+K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK3/")
     png("niche-assessment/K_1_3_rbb.png")
         plot(K1K3.rbb)
     dev.off()
