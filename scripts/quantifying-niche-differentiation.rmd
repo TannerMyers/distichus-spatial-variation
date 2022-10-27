@@ -253,6 +253,8 @@ rad_data <- rad_data[rad_data$Sample_ID_pop %in% cluster$Sample_ID_pop, ]
 ```{r}
 all_pts <- SpatialPoints(occs_ad[, 2:3])
     crs(all_pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+## Get rid of the off-island stragglers
+all_pts <- all_pts[!is.na(over(all_pts, Hispaniola)), ]
 
 for (k in 1:5){
     pts <- SpatialPoints(rad_data[rad_data$snmfCluster == k, c("Longitude", "Latitude")])
@@ -262,15 +264,15 @@ for (k in 1:5){
                     clipToCoast = "terrestrial",
                     buff = 1000)
         assign(paste0("K", k, "_alpha_poly"), poly)
-    
+
     lims <- extent(poly[[1]])
         assign(paste0("K", k, "_extent"), lims)
 
     ## Subset occurrences that fall within spatial polygon made above
-    df <- occs_ad[!is.na(over(all_pts, poly[[1]])), ]
+    df <- all_pts[!is.na(over(all_pts, poly[[1]])), ]
     # Combine total points
     colnames(pts@coords) <- colnames(all_pts@coords)
-    df2 <- as_tibble(rbind(pts@coords, df[, 2:3]))
+    df2 <- as_tibble(rbind(pts@coords, df@coords))
     df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
         colnames(df3)[3] <- "K"
         df3$K <- as.factor(df3$K)
@@ -285,16 +287,37 @@ for (k in 1:5){
         assign(paste0("K", k, "_thinned"), df4)
 }
 
-## The second population has occurrences on satellite islands so let's prune those
-K2_alpha_poly[[1]] <- ms_filter_islands(input = K2_alpha_poly[[1]], min_area = 1500000000)
-    K2_spat_tot <- SpatialPoints(K2_total_pts[, 1:2])
-    K2_spat_th <- SpatialPoints(K2_thinned[, 1:2])
-    crs(K2_spat_tot) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0" 
-    crs(K2_spat_th) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-K2_total_pts <- K2_total_pts[!is.na(over(K2_spat_tot, K2_alpha_poly[[1]])), ]
-    write_delim(x = K2_total_pts, file = "niche-assessment/K_2_total_pts.csv", delim = ",", col_names = TRUE)
-K2_thinned <- K2_thinned[!is.na(over(K2_spat_th, K2_alpha_poly[[1]])), ]
-    write_delim(x = K2_thinned, file = "niche-assessment/K_2_thinned.csv", delim = ",", col_names = TRUE)
+# sNMF groups A. d. dominicensis west of the Cordillera Central and the South paleo-island populations together
+# however, phylogenies disagree with this so we are going to split that cluster into these distinct geographic groups
+# western A. d. dominicensis
+dom14_pts <- SpatialPoints(rad_data[rad_data$Taxon == c("dom1", "dom4"), c("Longitude", "Latitude")])
+## larger buffer because sampling includes fewest amount of range
+dom14_poly <- rangeBuilder::getDynamicAlphaHull(x = dom14_pts@coords, fraction = 1.0,
+                    clipToCoast = "terrestrial", buff = 40000)
+lims <- extent(dom14_poly[[1]])
+df <- all_pts[!is.na(over(all_pts, dom14_poly[[1]])), ]
+    colnames(dom14_pts@coords) <- colnames(all_pts@coords)
+    df2 <- as_tibble(rbind(dom14_pts@coords, df@coords))
+    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
+    write_delim(x = df3, file = "niche-assessment/dom14_total_pts.csv",
+                delim = ",", col_names = TRUE)
+## Thin points
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
+        write_delim(x = df4, file = "niche-assessment/dom14_thinned.csv", delim = ",", col_names = TRUE)
+
+# South paleo-island
+south_pts <- SpatialPoints(rad_data[rad_data$Taxon %in% c("favillarum", "aurifer", "dom3", "suppar", "vinosus") & rad_data$snmfCluster == 2, c("Longitude", "Latitude")])
+south_poly <- rangeBuilder::getDynamicAlphaHull(x = south_pts@coords, fraction = 1.0,
+                    clipToCoast = "terrestrial", buff = 1000)
+lims <- extent(south_poly[[1]])
+df <- all_pts[!is.na(over(all_pts, south_poly[[1]])), ]
+    colnames(south_pts@coords) <- colnames(all_pts@coords)
+    df2 <- as_tibble(rbind(south_pts@coords, df@coords))
+    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep("South paleo-island", nrow(df2)))))
+    write_delim(x = df3, file = "niche-assessment/south_paleo_total_pts.csv", delim = ",", col_names = TRUE)
+## Thin points
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
+        write_delim(x = df4, file = "niche-assessment/south_paleo_thinned.csv", delim = ",", col_names = TRUE)
 ```
 
 # Explore univariate distributions of environmental variables
@@ -513,40 +536,95 @@ K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-as
 
 # Perform rangebreak blob tests
 ```{r}
-## Eastern A. d. dominicensis vs western A. d. dominicensis and South paleo-island
-K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, type = "mx", nreps = 1000)
+# Eastern A. d. dominicensis vs western A. d. dominicensis and South paleo-island
+K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK2/")
     png("niche-assessment/K_1_2_rbb.png")
         plot(K1K2.rbb)
     dev.off()
-    save(K1K2.rbb, file = "niche-assessment/K1_K2.rbb")
+    print(summary(K1K2.rbb))
+    save(K1K2.rbb, file = "niche-assessment/K1K2.rbb.RData")
 
 ## Eastern A. d. dominicensis vs A. d. ignigularis
-K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, type = "mx", nreps = 1000) 
+K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK3/")
     png("niche-assessment/K_1_3_rbb.png")
         plot(K1K3.rbb)
     dev.off()
-    save(K1K3.rbb, file = "niche-assessment/K1_K3.rbb")
+    print(summary(K1K3.rbb))
+    save(K1K3.rbb, file = "niche-assessment/K1K3.rbb.RData")
 
-## A. d. ignigularis vs A. d. properus
-K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, type = "mx", nreps = 1000)
+# ## A. d. ignigularis vs A. d. properus
+K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK5/")
     png("niche-assessment/K_3_5_rbb.png")
         plot(K3K5.rbb)
     dev.off()
-    save(K3K5.rbb, file = "niche-assessment/K3K5.rbb")
+    print(summary(K3K5.rbb))
+    save(K3K5.rbb, file = "niche-assessment/K3K5.rbb.RData")
 
-## A. d. ignigularis vs A. d. ravitergum
-K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, type = "mx", nreps = 1000)
+# ## A. d. ignigularis vs A. d. ravitergum
+K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK4/")
     png("niche-assessment/K_3_4_rbb.png")
         plot(K3K4.rbb)
     dev.off()
-    save(K3K4.rbb, file = "niche-assessment/K3K4.rbb")
+    print(summary(K3K4.rbb))
+    save(K3K4.rbb, file = "niche-assessment/K3K4.rbb.RData")
 
 ## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
-K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, type = "mx", nreps = 1000)
+K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vK2/")
     png("niche-assessment/K_4_2_rbb.png")
         plot(K4K2.rbb)
     dev.off()
-    save(K4K2.rbb, file = "niche-assessment/K4K2.rbb")
+    print(summary(K4K2.rbb))
+    save(K4K2.rbb, file = "niche-assessment/K4K2.rbb.RData")
+
+## Eastern A. d. dominicensis vs western A. d. dominicensis
+K1d14.rbb <- rangebreak.blob(species.1 = K1, species.2 = d14, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vsD14/")
+    png("niche-assessment/K_4_d14_rbb.png")
+        plot(K1d14.rbb)
+    dev.off()
+    print(summary(K1d14.rbb))
+    save(K1d14.rbb, file = "niche-assessment/K1d14.rbb.RData")
+
+## A. d. ravitergum vs South paleo-island 
+K4spi.rbb <- rangebreak.blob(species.1 = K4, species.2 = spi, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsSPI/")
+    png("niche-assessment/K_4_spi_rbb.png")
+        plot(K4spi.rbb)
+    dev.off()
+    print(summary(K4spi.rbb))
+    save(K4spi.rbb, file = "niche-assessment/K4spi.rbb.RData")
+
+## A. d. ravitergum vs western A. d. dominicensis
+K4d14.rbb <- rangebreak.blob(species.1 = K4, species.2 = d14, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsD14/")
+    png("niche-assessment/K_4_d14_rbb.png")
+        plot(K4d14.rbb)
+    dev.off()
+    print(summary(K4d14.rbb))
+    save(K4d14.rbb, file = "niche-assessment/K4d14.rbb.RData")
+
+## South paleo-island vs western A. d. dominicensis
+spid14.rbb <- rangebreak.blob(species.1 = spi, species.2 = d14, env = env2, type = "mx", nreps = 1000,
+                            bg.source = "points", low.memory = TRUE, verbose = TRUE,
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_SPIvsD14/")
+    png("niche-assessment/K_4_spi_rbb.png")
+        plot(spid14.rbb)
+    dev.off()
+    print(summary(spid14.rbb))
+    save(spid14.rbb, file = "niche-assessment/spid14.rbb.RData")
 ```
 
 # Perform niche similarity/background tests from Warren et al. (2008)
