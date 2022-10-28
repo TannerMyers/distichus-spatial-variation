@@ -17,7 +17,7 @@ env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04",
 # Create ENMTools species objects
 spi <- enmtools.species(species.name = "spi", presence.points = read.csv("niche-assessment/south_paleo_thinned.csv"))
     spi$range <- background.raster.buffer(spi$presence.points, radius = 50000, mask = env2[[1]])
-    spi$background.points <- background.buffer(points = spi$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
+    spi$background.points <- background.buffer(points = spi$presence.pointss[, 1:2], buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
     check.species(spi)
 
 d14 <- enmtools.species(species.name = "d14", presence.points = read.csv("niche-assessment/dom14_thinned.csv"))

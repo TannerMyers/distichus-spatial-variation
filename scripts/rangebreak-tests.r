@@ -50,7 +50,7 @@ d14 <- enmtools.species(species.name = "d14", presence.points = read.csv("niche-
 
 spi <- enmtools.species(species.name = "spi", presence.points = read.csv("niche-assessment/south_paleo_thinned.csv"))
     spi$range <- background.raster.buffer(spi$presence.points, radius = 50000, mask = env2[[1]])
-    spi$background.points <- background.buffer(points = spi$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
+    spi$background.points <- background.buffer(points = spi$presence.points[, 1:2], buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
     check.species(spi)
 
 ####################################################################################################
