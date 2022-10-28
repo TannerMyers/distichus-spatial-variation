@@ -22,7 +22,7 @@ K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-as
 
 spi <- enmtools.species(species.name = "spi", presence.points = read.csv("niche-assessment/south_paleo_thinned.csv"))
     spi$range <- background.raster.buffer(spi$presence.points, radius = 50000, mask = env2[[1]])
-    spi$background.points <- background.buffer(points = spi$presence.pointss[, 1:2], buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
+    spi$background.points <- background.buffer(points = spi$presence.points[, 1:2], buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
     check.species(spi)
 
 ####################################################################################################
