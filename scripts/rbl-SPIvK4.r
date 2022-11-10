@@ -29,7 +29,7 @@ spi <- enmtools.species(species.name = "spi", presence.points = read.csv("niche-
 # Run rangebreak tests
 K4spi.rbl <- rangebreak.linear(species.1 = K4, species.2 = spi, env = env2, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
-                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsSPI/")
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsSPI/linear")
     png("niche-assessment/K_4_spi_rbl.png")
         plot(K4spi.rbl)
     dev.off()

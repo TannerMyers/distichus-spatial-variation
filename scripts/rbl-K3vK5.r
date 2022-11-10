@@ -29,7 +29,7 @@ K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-as
 ## A. d. ignigularis vs A. d. properus
 K3K5.rbl <- rangebreak.linear(species.1 = K3, species.2 = K5, env = env2, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
-                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK5/")
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK5/linear")
     png("niche-assessment/K_3_5_rbl.png")
         plot(K3K5.rbl)
     dev.off()

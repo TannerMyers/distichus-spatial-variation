@@ -30,7 +30,7 @@ K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-as
 ## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
 K4K2.rbl <- rangebreak.linear(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
-                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vK2/")
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vK2/linear")
     png("niche-assessment/K_4_2_rbl.png")
         plot(K4K2.rbl)
     dev.off()

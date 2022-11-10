@@ -29,7 +29,7 @@ d14 <- enmtools.species(species.name = "d14", presence.points = read.csv("niche-
 # Run rangebreak tests
 K4d14.rbl <- rangebreak.linear(species.1 = K4, species.2 = d14, env = env2, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
-                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsD14/")
+                            rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsD14/linear")
     png("niche-assessment/K_4_d14_rbl.png")
         plot(K4d14.rbl)
     dev.off()
