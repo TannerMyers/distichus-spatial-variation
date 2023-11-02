@@ -13,19 +13,14 @@ setwd(working_dir)
 
 # Load libraries
 library(spocc)
-library(sp)
-library(raster)
-library(rgeos)
-library(rgdal)
+library(terra)
+library(tidyterra)
 library(sf)
+library(sp)
 library(rmapshaper)
 library(ellipsenm)
-library(envirem)
 library(rangeBuilder)
-library(fauxcurrence)
 library(ENMTools)
-library(usdm)
-library(RStoolbox)
 library(data.table)
 library(tidyverse)
 
@@ -34,17 +29,9 @@ source("scripts/fill.NA.r")
 ```
 
 ```{r}
-# Load a shapefile of the island of Hispaniola
-# DOM <- getData('GADM', country = 'DOM', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-# HTI <- getData('GADM', country = 'HTI', level=0, path = paste0(working_dir, "/data/shape-files/"), download = FALSE)
-#     row.names(DOM) <- paste("DOM", row.names(DOM), sep = "_")
-#     row.names(HTI) <- paste("HTI", row.names(HTI), sep = "_")
-# Hispaniola <- rbind(HTI, DOM, makeUniqueIDs = TRUE)
-#     Hispaniola <- gSimplify(Hispaniola, tol = 0.01, topologyPreserve = TRUE)
-#     ## Remove Gonave, Tortuga, and Saona
-#     Hispaniola <- ms_filter_islands(Hispaniola, min_area = 1500000000)
-# shapefile(x = Hispaniola, file = paste0(working_dir, "/data/shape-files/Hispaniola.shp")
-Hispaniola <- readOGR(paste0(working_dir, "/data/shape-files/Hispaniola.shp"))
+# Load shapefile of Hispaniola for masking rasters
+hispaniola <- st_read(dsn = paste0(working_dir, "/data/shape-files/")) # or
+# hispaniola <- vect(paste0(working_dir, "/data/shape-files/Hispaniola.shp"))
 ```
 
 # Download occurrences
@@ -54,490 +41,425 @@ occ_dir <- paste0(working_dir, "/data/occurrences/")
 # dir.create(occ_dir)
 
 # Get occurrences for Anolis distichus and Anolis brevirostris from GBIF, VertNet, and iNaturalist
-# ad <- spocc::occ(query = c("Anolis distichus", "Anolis dominicensis",
-#     "Anolis ignigularis", "Anolis properus", "Anolis favillarum",
-#     "Anolis ravitergum", "Anolis vinosus", "Anolis aurifer", "Anolis suppar"),
-#     from = c("vertnet", "gbif", "inat"),
-#     limit = 100000)
+ad <- spocc::occ(query = c("Anolis distichus", "Anolis dominicensis",
+                "Anolis ignigularis", "Anolis properus", "Anolis favillarum",
+                "Anolis ravitergum", "Anolis vinosus", "Anolis aurifer", "Anolis suppar"),
+                from = c("vertnet", "gbif", "inat"), limit = 100000)
 
-# ab <- spocc::occ(query = c("Anolis brevirostris"),
-#     from = c("vertnet", "gbif", "inat"),
-#     limit = 100000)
+## Combine all dataframes into one large dataframe
+gbif_occs <- bind_rows(ad$gbif$data, .id = "column_label")
 
-# ## Get list of dataframes containing occurrences under different taxon labels from GBIF 
-#     gbif_occs_ad <- ad$gbif$data
-#     gbif_occs_ab <- ab$gbif$data
-#     # Combine all dataframes into one large dataframe
-#     gbif_occs_ad <- bind_rows(gbif_occs_ad, .id = "column_label")
-#     gbif_occs_ab <- bind_rows(gbif_occs_ab, .id = "column_label")
+## Repeat for iNaturalist and VertNet occurrences
+inat_occs <- bind_rows(ad$inat$data, .id = "column_label")
+vertnet_occs <- bind_rows(ad$vertnet$data, .id = "column_label")
 
-#     # Repeat for iNaturalist and VertNet occurrences
-#     inat_occs_ad <- ad$inat$data
-#     inat_occs_ad <- bind_rows(inat_occs_ad, .id = "column_label")
-#     inat_occs_ab <- ab$inat$data
-#     inat_occs_ab <- bind_rows(inat_occs_ab, .id = "column_label")
-#     vertnet_occs_ad <- ad$vertnet$data
-#     vertnet_occs_ad <- bind_rows(vertnet_occs_ad, .id = "column_label")
-#     vertnet_occs_ab <- ab$vertnet$data
-#     vertnet_occs_ab <- bind_rows(vertnet_occs_ab, .id = "column_label")
+for (i in unique(gbif$datasetKey)){
+        print(paste("Occurrence count for", i, "is", dim(gbif[gbif$datasetKey == i,])[1]))
+}
 
-#     # Write unfiltered occurrences from the databases to files
-#     write_csv(gbif_occs_ad, "Anolis_distichus_GBIF_occurrences_download.csv")
-#     write_csv(vertnet_occs_ad, "Anolis_distichus_VertNet_occurrences_download.csv")
-#     write_csv(inat_occs_ad, "Anolis_distichus_iNat_occurrences_download.csv")
-#     write_csv(gbif_occs_ab, "Anolis_brevirostris_GBIF_occurrences_download.csv")
-#     write_csv(vertnet_occs_ab, "Anolis_brevirostris_VertNet_occurrences_download.csv")
-#     write_csv(inat_occs_ab, "Anolis_brevirostris_iNat_occurrences_download.csv")
+## Write unfiltered occurrences from the databases to files
+write_csv(gbif_occs, "Anolis_distichus_GBIF_occurrences_download.csv")
+write_csv(vertnet_occs, "Anolis_distichus_VertNet_occurrences_download.csv")
+write_csv(inat_occs, "Anolis_distichus_iNat_occurrences_download.csv")
 
-# ## Create master files of occurrences
-#     colnames(gbif_occs_ad)
-#     # This will work for both species' sets of occurrences
-#     columns <- c("name", "longitude", "latitude", "year", "month", "day")
+## Create master files of occurrences
+colnames(gbif_occs)
+# This will work for both species' sets of occurrences
+columns <- c("name", "longitude", "latitude", "year", "month", "day")
 
-#     occs_ad <- as_tibble(rbind(gbif_occs_ad[, columns], vertnet_occs_ad[, columns]))
-#     occs_ab <- as_tibble(rbind(gbif_occs_ab[, columns], vertnet_occs_ad[, columns]))
+occs <- as_tibble(rbind(gbif_occs[, columns], vertnet_occs[, columns]))
 
-#     # For iNaturalist occurrences only (naming conventions differ)
-#     ## First, filter out non-research grade, obscured, and private observations
-#     inat_occs_ad <- inat_occs_ad[inat_occs_ad$quality_grade == "research", ]
-#     inat_occs_ad <- inat_occs_ad %>% filter(!geoprivacy %in% c("obscured", "private"))
-#     inat_occs_ab <- inat_occs_ab[inat_occs_ab$quality_grade == "research", ]
-#     inat_occs_ab <- inat_occs_ab %>% filter(!geoprivacy %in% c("obscured", "private"))
+## For iNaturalist occurrences only (naming conventions differ)
+## First, filter out non-research grade, obscured, and private observations
+inat_occs <- inat_occs[inat_occs$quality_grade == "research", ]
+inat_occs <- inat_occs %>% filter(!geoprivacy %in% c("obscured", "private"))
+colnames(inat_occs)
+columns2 <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
+inat_occs_filtered <- inat_occs[, columns2]
+colnames(inat_occs_filtered) <- columns 
 
-#     colnames(inat_occs_ad)
-#     columns2 <- c("name", "longitude", "latitude", "observed_on_details.year", "observed_on_details.month", "observed_on_details.day")
-#     inat_occs_filtered.ad <- inat_occs_ad[, columns2]
-#     inat_occs_filtered.ab <- inat_occs_ab[, columns2]
-#     colnames(inat_occs_filtered.ad) <- columns 
-#     colnames(inat_occs_filtered.ab) <- columns
-
-# occs_ad <- as_tibble(rbind(occs_ad, inat_occs_filtered.ad))
-# occs_ab <- as_tibble(rbind(occs_ab, inat_occs_filtered.ab))
-# write_csv(occs_ad, "unfiltered_distichus_occurrences.csv")
-# write_csv(occs_ab, "unfiltered_brevirostris_occurrences.csv")
+occs <- as_tibble(rbind(occs, inat_occs_filtered))
+write_csv(occs, "unfiltered_distichus_occurrences.csv")
 ```
 
 # Filter occurrences
 ```{r}
 # Load occurrences if not already loaded
-# occs_ad <- read_csv(paste0(occ_dir, "unfiltered_distichus_occurrences.csv"))
-# occs_ab <- read_csv(paste0(occ_dir, "unfiltered_distichus_occurrences.csv"))
+# occs <- read_csv(paste0(occ_dir, "unfiltered_distichus_occurrences.csv"))
 
-# # Exclude occurrences without coordinates
-# occs_ad <- occs_ad %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
+# Exclude occurrences without coordinates
+occs <- occs %>% filter_at(vars(longitude, latitude), all_vars(!is.na(.)))
 
-# # Exclude duplicate occurrences
-# occs_ad <- occs_ad[!duplicated(paste(occs_ad$longitude, occs_ad$latitude)), ]
+# Exclude duplicate occurrences
+occs <- occs[!duplicated(paste(occs$longitude, occs$latitude)), ]
 
-# # Omit samples not from Hispaniola
-#     ## Get extent for cropping
-#     limits <- extent(Hispaniola)
+# Omit samples not from Hispaniola
+## Get extent for cropping
+limits <- ext(hispaniola)
 
-#     ## Convert occurrences object to SpatialPointsDataFrame
-#     occs_ad.spdf <- SpatialPointsDataFrame(occs_ad[,c("longitude", "latitude")], occs_ad[,c(1, 4:ncol(occs_ad))])
-#     occs_ab.spdf <- SpatialPointsDataFrame(occs_ab[,c("longitude", "latitude")], occs_ab[,c(1, 4:ncol(occs_ab))])
-#     ## Crop it!
-#     occs_ad.spdf <- raster::crop(occs_ad.spdf, limits)
-#     occs_ab.spdf <- raster::crop(occs_ab.spdf, limits)
+## Convert sampling coordinates into SpatVector
+pts <- vect(as.matrix(occs[, c("longitude", "latitude")]), type = "points")
+## Crop it!
+pts2 <- crop(x = pts, y = limits)
+# plot(pts2)
+pts2 <- as.data.frame(terra::geom(pts2)[, 3:4])
+colnames(pts2) <- c("longitude", "latitude")
 
-#     ## Convert back to dataframe --- Probably a better way to do this, but I couldn't think of one or find an alternative
-#     occs_ad <- as_tibble(cbind(occs_ad.spdf@data[,1], occs_ad.spdf@coords, occs_ad.spdf@data[,2:ncol(occs_ad.spdf@data)]))
-#     occs_ab <- as_tibble(cbind(occs_ab.spdf@data[,1], occs_ab.spdf@coords, occs_ab.spdf@data[,2:ncol(occs_ab.spdf@data)])) 
+occs <- right_join(x = occs, y = pts2)
 
-# # There are still some pesky ocean-dwelling anoles,
-# # but those will get cleaned up when we split this dataset into different lineages
-# write_csv(occs_ad, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
-# write.csv(occs_ab, paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
+# There are still some pesky ocean-dwelling anoles,
+# but those will get cleaned up when we split this dataset into different lineages
+write_csv(occs, paste0(occ_dir, "filtered_distichus_occurrences.csv"))
 
 # Load filtered occurrences downloaded with `spocc` R package
-occs_ad <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
-occs_ab <- read_csv(paste0(occ_dir, "filtered_brevirostris_occurrences.csv"))
-```
+occs <- read_csv(paste0(occ_dir, "filtered_distichus_occurrences.csv"))
+all_pts <- vect(as.matrix(occs[, 2:3]), type = "points")
 
-# Load environmental variables
-```{r}
-# chelsa_clim <- raster::stack(list.files(path = "data/chelsa_new/", pattern = ".asc", full.names = TRUE))
-# modis_vi <- raster::stack(list.files(path = "data/MODIS_new/", pattern = ".asc", full.names = TRUE))
-# ## These raster stacks have different extents
-#     ## Since the extent of modis_vi fits within chelsa_clim's extent, crop chelsa_clim
-#     chelsa_clim <- crop(chelsa_clim, modis_vi@extent)
-#     chelsa_clim@extent <- raster::alignExtent(chelsa_clim@extent, modis_vi)
-
-## Now, load elevational data that has already been adjusted to the MODIS variable extent
-# elev_srtm <- raster("data/elevation_new/SRTM_elevation_1km.asc")
-
-# ## Merge all environmental data layers into single raster stack
-# env <- raster::stack(elev_srtm, chelsa_clim, modis_vi, full.names = TRUE)
-#     ## Check rasters for same extent and resolution &
-#     ## set values to NA if NAs present in any layer
-#     env <- crop(env, Hispaniola)
-#     crs(env) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-#     env <- ENMTools::check.env(env)
-
-# width <- 9
-# for (i in 1:20){
-#     var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
-#         assign(paste0("var_", i), var)
-# }
-
-# # Add imputed rasters to a new raster stack
-# env_imputed <- stack(var_1, var_2, var_3, var_4, var_5, var_6, var_7, var_8, var_9, var_10, 
-#                     var_11, var_12, var_13, var_14, var_15, var_16, var_17, var_18, var_19, var_20)
-#     ## Change layer names to original variable names
-#     names(env_imputed) <- names(env)
-#     env_imputed <- mask(env_imputed, Hispaniola)
-#     env_imputed <- ENMTools::check.env(env_imputed)
-
-# # Save imputed variables to a new directory # NOT RUN YET
-#     dir.create(paste0(working_dir, "/data/env_imputed"))
-
-#     lapply(names(env_imputed), function(x) {
-#         writeRaster(env_imputed[[x]], paste0(working_dir, "/data/env_imputed/", x, ".asc"), overwrite = TRUE)
-#     })
-env <- raster::stack(list.files(path = "data/env_imputed", pattern = ".asc", full.names = TRUE))
-```
-
-# Explore correlation in environmental data & remove collinear variables
-```{r}
-set.seed(36)
-
-# Examine collinearity among environmental variables
-raster.cor.matrix(env)
-
-cor <- raster.cor.plot(env)
-    # Plot correlations between raster in MDS space
-    png("data/env_imputed/predictor-MDS.png")
-        cor$cor.mds.plot
-    dev.off()
-    # Plot correlations as a heatmap between pairs of rasters
-    png("data/env_imputed/predictor-heatmap.png")
-        cor$cor.heatmap
-    dev.off()
-
-# Estimate Variance Influence Factors (VIFs) for each of the predictors
-    ## `vifcor` function of the `usdm` package estimates VIFs for a Raster Stack
-    ## by finding a pair of variables with a maximum linear correlation and excludes
-    ## the one with the greater VIF until no variable with a high correlation coefficient
-    ## with other variables remains
-vifcor <- usdm::vifcor(x = env, th = 0.9)
-    print(vifcor)
-
-    ## `vifstep` function of the `usdm` package estimates VIFs for a Raster Stack
-    ## all at once, excluding the one with the highest VIF, repeating until no variables
-    ## with VIF higher than th remains
-vifstep <- usdm::vifstep(x = env, th = 10)
-    print(vifstep)
-
-# Based on these results, I am going with the following environmental variables:
-env2 <- env[[c("CHELSA_bio10_03", "CHELSA_bio10_04",
-            "CHELSA_bio10_15", "CHELSA_bio10_16",
-            "march_EVI_mean", "may_NDVI_mean")]]
-    ENMTools::check.env(env2)
+all_pts <- mask(x = all_pts, mask = vect(hispaniola))
 ```
 
 # Load sampling information and population clustering assignment from ddRADseq data
 ```{r}
 # Load ddRAD sampling spreadsheet
-rad_data <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/info/distichus-popmap-cleaned-master.tsv", col_names = TRUE)
-    rad_data[36,2] <- "1352_dom2" ## Note there is a discrepancy in how this specimen is classified between my sampling spreadsheets
-cluster <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/population-structure/lea/sNMF/distichus-subsp/sNMF_K5_ancestry_coefficients_cluster-specimen-cleaned.tsv", col_names = TRUE)
+RAD_data <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/info/distichus-species-group-Hispaniola-only-popmap-cleaned.tsv", col_names = FALSE) 
+colnames(RAD_data) <- c("specimen", "specimen_pop", "filepath", "subspecies", "population", "complex", "island", "locality", "longitude", "latitude", "note")
+K5_geno <- read_table("~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/AnoDist_aln/population-structure/ADMIXTURE_PCA/geno90/distichus_geno90_filtered_LD_50kb_100_0.1_ready.5.Q", col_names = FALSE)
+cluster <- apply(K5_geno, 1, which.max)
 
-rad_data <- rad_data[rad_data$Sample_ID_pop %in% cluster$Sample_ID_pop, ]
-    rad_data <- as_tibble(cbind(rad_data, cluster$cluster))
-    colnames(rad_data)[13] <- "snmfCluster"
-    ## Remove duplicates
-    rad_data <- as_tibble(unique(setDT(rad_data), by = 'Locality'))
+RAD_data <- as_tibble(cbind(RAD_data, cluster))
+## Remove duplicates
+RAD_data <- as_tibble(unique(setDT(RAD_data), by = 'locality'))
+```
+
+# Generate range polygons
+```{r}
+## K = 1 includes three distinct genomic clusters recovered by hierarchical analysis
+for (k in 2:5){
+    pts <- SpatialPoints(RAD_data[RAD_data$cluster == k, c("longitude", "latitude")])
+        crs(pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
+        assign(paste0("K", k, "_pts"), pts)
+
+    poly <- rangeBuilder::getDynamicAlphaHull(x = pts@coords, fraction = 1.0, clipToCoast = "terrestrial", buff = 1000)
+    poly <- vect(poly[[1]])
+        assign(paste0("K", k, "_alpha_poly"), poly)
+}
+
+# Western A. d. dominicensis
+dom14_pts <- SpatialPoints(RAD_data[(RAD_data$subspecies == "dom1"| RAD_data$subspecies == "dom4"), c("longitude", "latitude")])
+## larger buffer because sampling includes fewest amount of range
+dom14_poly <- rangeBuilder::getDynamicAlphaHull(x = dom14_pts@coords, fraction = 1.0,
+                    clipToCoast = "terrestrial", buff = 40000)
+dom14_poly <- vect(dom14_poly[[1]])
+
+## Tiburon peninsula endemic subspecies 
+## Updated to include sampling from greater area
+tiburon_pts <- data.frame(rbind(occs[occs$name %in% c( "Anolis distichus aurifer Schwartz, 1968", "Anolis distichus aurifer", "Anolis distichus eurifer",
+                        "Anolis distichus vinosus", "Anolis distichus vinosus Schwartz, 1968",
+                        "Anolis vinosus", "ANOLIS DISTICHUS VINOSUS", "Anolis vinosus Schwartz, 1968",
+                        "Anolis distichus suppar", "Anolis distichus suppar Schwartz, 1968"), 2:3],
+                        RAD_data[RAD_data$subspecies %in% c("aurifer", "dom3", "suppar", "vinosus"), c("longitude", "latitude")]))
+tiburon_pts <- tiburon_pts[tiburon_pts$latitude < 19,]
+tiburon_pts <- SpatialPoints(tiburon_pts)
+tiburon_poly <- rangeBuilder::getDynamicAlphaHull(x = tiburon_pts@coords, fraction = 1.0, clipToCoast = "no", buff = 1000, verbose = TRUE)
+tiburon_poly <- vect(tiburon_poly[[1]])   
+
+## A. d. favillarum (by far the smallest range)
+fav_pts <- SpatialPoints(RAD_data[RAD_data$subspecies %in% c("favillarum") & RAD_data$cluster == 1, c("longitude", "latitude")])
+fav_poly <- rangeBuilder::getDynamicAlphaHull(x = fav_pts@coords, fraction = 1.0,
+                    clipToCoast = "terrestrial", buff = 1000)
+fav_poly <- vect(fav_poly[[1]])
+
+ggplot() + geom_sf(data = hispaniola) +
+    geom_spatvector(data = K2_alpha_poly) + geom_spatvector(data = K3_alpha_poly) + geom_spatvector(data = K4_alpha_poly) + geom_spatvector(data = K5_alpha_poly) +
+    geom_spatvector(data = dom14_poly) + geom_spatvector(data = fav_poly) + geom_spatvector(data = tiburon_poly)
+## ignigularis + properus overlap, western and eastern dominicensis overlap, and so do ignigularis and eastern dominicensis
+```
+
+# Crop and remove overlapping sections of polygons prior to filtering occurences
+```{r}
+## ignigularis + properus 
+crop <- crop(K5_alpha_poly, K4_alpha_poly)
+K5_alpha_poly <- erase(K5_alpha_poly, crop)
+
+## western and eastern dominicensis
+crop <- crop(dom14_poly, K2_alpha_poly)
+dom14_poly <- erase(dom14_poly, crop)
+
+## ignigularis and eastern dominicensis
+crop <- crop(K5_alpha_poly, K2_alpha_poly)
+K5_alpha_poly <- erase(K5_alpha_poly, crop)
+
+ggplot() + geom_sf(data = hispaniola) + geom_spatvector(data = K2_alpha_poly, col = "brown") + geom_spatvector(data = K4_alpha_poly, col = "gray10") + geom_spatvector(data = K5_alpha_poly, col = "orangered") + geom_spatvector(data = dom14_poly, col = "tan")
+
+
+dir.create("niche-assessment/ranges")
+ranges <- mget(ls(pattern = "_poly"))
+
+lapply(names(ranges), function (x) {
+        writeVector(ranges[[x]], filename = paste0("niche-assessment/ranges/", x, ".shp"), overwrite = TRUE, filetype = "ESRI Shapefile")
+})
+```
+
+# Filter points based on polygons and thin
+```{r}
+# Prepare all points for masking/thinning
+all_pts <- geom(all_pts)[, 3:4]
+colnames(all_pts) <- colnames(RAD_data[, c("longitude", "latitude")])
+all_pts <- vect(as.matrix(rbind(all_pts, RAD_data[, c("longitude", "latitude")])))
+
+## Function to mask and thin points ## Need to fix: (1) save total points to object, (2) write objects, (3) preserve object names/change names in resulting object?
+pt_thinner <- function(poly){
+    # Mask occurrences to include only those within polygon
+    masked <- terra::mask(x = all_pts, mask = poly)
+    # Convert from SpatVector to dataframe 
+    df <- as.data.frame(terra::geom(masked)[, 3:4])
+
+    df2 <- df[!duplicated(paste(df$x, df$y)), ]
+    colnames(df2) <- c("longitude", "latitude")
+
+    if (ext(poly) == ext(ranges$fav_poly)){
+        df3 <- thin_data(df2, "longitude", "latitude", thin_distance = 2, save = FALSE) 
+    } else {
+        df3 <- thin_data(df2, "longitude", "latitude", thin_distance = 10, save = FALSE)      
+    }
+
+    output <- list("total_pts" = df2, "thinned_pts" = df3)
+
+    return(output)
+}
+
+range_pts <- lapply(ranges, pt_thinner)
+
+ggplot() + geom_sf(data = hispaniola) +
+    geom_spatvector(data = ranges$K2_alpha_poly) + geom_spatvector(data = ranges$K3_alpha_poly) + geom_spatvector(data = ranges$K4_alpha_poly) + geom_spatvector(data = ranges$K5_alpha_poly) +
+    geom_spatvector(data = ranges$dom14_poly) + geom_spatvector(data = ranges$fav_poly) + geom_spatvector(data = ranges$tiburon_poly) +
+    geom_point(data = range_pts$K2_alpha_poly$thinned_pts, aes(x = longitude, y = latitude), color = "brown") + geom_point(data = range_pts$K3_alpha_poly$thinned_pts, aes(x = longitude, y = latitude), color = "yellow") +
+    geom_point(data = range_pts$K4_alpha_poly$thinned_pts, aes(x = longitude, y = latitude), color = "gray60") + geom_point(data = range_pts$K5_alpha_poly$thinned_pts, aes(x = longitude, y = latitude), color = "orangered") +
+    geom_point(data = range_pts$dom14_poly$thinned_pts, aes(x = longitude, y = latitude), color = "tan") + geom_point(data = range_pts$tiburon_poly$thinned_pts, aes(x = longitude, y = latitude), color = "dodgerblue3") +
+    geom_point(data = range_pts$fav_poly$thinned_pts, aes(x = longitude, y = latitude), color = "orchid")
+
+lapply(names(range_pts), function(x) {
+        write_csv(range_pts[[x]]$total_pts, paste0(working_dir, "/niche-assessment/", x, "-total-points.csv"))
+        write_csv(range_pts[[x]]$thinned_pts, paste0(working_dir, "/niche-assessment/", x, "-thinned-points.csv"))
+})
 ```
 
 # Generate range polygons, presence points, and rasters for generating background points
 ```{r}
-all_pts <- SpatialPoints(occs_ad[, 2:3])
-    crs(all_pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
-## Get rid of the off-island stragglers
-all_pts <- all_pts[!is.na(over(all_pts, Hispaniola)), ]
-
 for (k in 1:5){
-    pts <- SpatialPoints(rad_data[rad_data$snmfCluster == k, c("Longitude", "Latitude")])
+    pts <- SpatialPoints(RAD_data[RAD_data$cluster == k, c("longitude", "latitude")])
         crs(pts) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
 
-    poly <- rangeBuilder::getDynamicAlphaHull(x = pts@coords, fraction = 1.0,
-                    clipToCoast = "terrestrial",
-                    buff = 1000)
+    poly <- rangeBuilder::getDynamicAlphaHull(x = pts@coords, fraction = 1.0, clipToCoast = "terrestrial", buff = 1000)
+    poly <- vect(poly[[1]])
         assign(paste0("K", k, "_alpha_poly"), poly)
-
-    lims <- extent(poly[[1]])
-        assign(paste0("K", k, "_extent"), lims)
-
+    
     ## Subset occurrences that fall within spatial polygon made above
-    df <- all_pts[!is.na(over(all_pts, poly[[1]])), ]
+    masked <- terra::mask(x = all_pts, mask = poly)
+    df <- as.data.frame(terra::geom(masked)[, 3:4])
+
     # Combine total points
-    colnames(pts@coords) <- colnames(all_pts@coords)
-    df2 <- as_tibble(rbind(pts@coords, df@coords))
-    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
-        colnames(df3)[3] <- "K"
-        df3$K <- as.factor(df3$K)
+    colnames(df) <- colnames(pts@coords)
+    df2 <- as_tibble(rbind(pts@coords, df))
+    df3 <- as_tibble(as.data.frame(cbind(df2, rep(k, nrow(df2)))))
+        colnames(df3)[3] <- "cluster"
+        df3$cluster <- as.factor(df3$cluster)
         df3 <- df3[!duplicated(paste(df3$longitude, df3$latitude)), ]
     write_delim(x = df3, file = paste0("niche-assessment/", "K_", k, "_total_pts.csv"),
                 delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_total_pts"), df3)
     
     ## Thin points
-    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 10, save = FALSE)
         write_delim(x = df4, file = paste0("niche-assessment/", "K_", k, "_thinned.csv"), delim = ",", col_names = TRUE)
         assign(paste0("K", k, "_thinned"), df4)
 }
 
-# sNMF groups A. d. dominicensis west of the Cordillera Central and the South paleo-island populations together
-# however, phylogenies disagree with this so we are going to split that cluster into these distinct geographic groups
+# ADMIXTURE groups A. d. dominicensis west of the Cordillera Central and the South paleo-island populations together
+# however, phylogenies disagree with this so we are going to split that cluster into these distinct geographic groups:
 # western A. d. dominicensis
-dom14_pts <- SpatialPoints(rad_data[rad_data$Taxon == c("dom1", "dom4"), c("Longitude", "Latitude")])
+dom14_pts <- SpatialPoints(RAD_data[(RAD_data$subspecies == "dom1"| RAD_data$subspecies == "dom4"), c("longitude", "latitude")])
 ## larger buffer because sampling includes fewest amount of range
 dom14_poly <- rangeBuilder::getDynamicAlphaHull(x = dom14_pts@coords, fraction = 1.0,
                     clipToCoast = "terrestrial", buff = 40000)
-lims <- extent(dom14_poly[[1]])
-df <- all_pts[!is.na(over(all_pts, dom14_poly[[1]])), ]
-    colnames(dom14_pts@coords) <- colnames(all_pts@coords)
-    df2 <- as_tibble(rbind(dom14_pts@coords, df@coords))
-    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep(k, nrow(df2)))))
+dom14_poly <- vect(dom14_poly[[1]])
+crop <- crop(dom14_poly, K2_alpha_poly)
+dom14_poly <- terra::erase(dom14_poly, crop)
+
+masked <- terra::mask(x = all_pts, mask = dom14_poly)
+    df <- as.data.frame(terra::geom(masked)[, 3:4])
+    # Combine total points
+    colnames(df) <- colnames(dom14_pts@coords)
+    df2 <- as_tibble(rbind(dom14_pts@coords, df))
+    df3 <- as_tibble(as.data.frame(cbind(df2, rep("dom14", nrow(df2)))))
+    colnames(df3)[3] <- "cluster"
     write_delim(x = df3, file = "niche-assessment/dom14_total_pts.csv",
                 delim = ",", col_names = TRUE)
 ## Thin points
-    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 10, save = FALSE)
         write_delim(x = df4, file = "niche-assessment/dom14_thinned.csv", delim = ",", col_names = TRUE)
+dom14 <- read_csv("niche-assessment/dom14_thinned.csv")
 
-# South paleo-island
-south_pts <- SpatialPoints(rad_data[rad_data$Taxon %in% c("favillarum", "aurifer", "dom3", "suppar", "vinosus") & rad_data$snmfCluster == 2, c("Longitude", "Latitude")])
-south_poly <- rangeBuilder::getDynamicAlphaHull(x = south_pts@coords, fraction = 1.0,
-                    clipToCoast = "terrestrial", buff = 1000)
-lims <- extent(south_poly[[1]])
-df <- all_pts[!is.na(over(all_pts, south_poly[[1]])), ]
-    colnames(south_pts@coords) <- colnames(all_pts@coords)
-    df2 <- as_tibble(rbind(south_pts@coords, df@coords))
-    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep("South paleo-island", nrow(df2)))))
-    write_delim(x = df3, file = "niche-assessment/south_paleo_total_pts.csv", delim = ",", col_names = TRUE)
+## Tiburon peninsula endemic subspecies 
+## Updated to include sampling from greater area
+tiburon_pts <- data.frame(rbind(occs[occs$name %in% c( "Anolis distichus aurifer Schwartz, 1968", "Anolis distichus aurifer", "Anolis distichus eurifer",
+                        "Anolis distichus vinosus", "Anolis distichus vinosus Schwartz, 1968",
+                        "Anolis vinosus", "ANOLIS DISTICHUS VINOSUS", "Anolis vinosus Schwartz, 1968",
+                        "Anolis distichus suppar", "Anolis distichus suppar Schwartz, 1968"), 2:3],
+                        RAD_data[RAD_data$subspecies %in% c("aurifer", "dom3", "suppar", "vinosus"), c("longitude", "latitude")] 
+))
+tiburon_pts <- tiburon_pts[tiburon_pts$latitude < 19,]
+tiburon_pts <- SpatialPoints(tiburon_pts)
+tiburon_poly <- rangeBuilder::getDynamicAlphaHull(x = tiburon_pts@coords, fraction = 1.0, clipToCoast = "no", buff = 1000, verbose = TRUE)
+tiburon_poly <- vect(tiburon_poly[[1]])                
+masked <- terra::mask(x = all_pts, mask = tiburon_poly)
+    df <- as.data.frame(terra::geom(masked)[, 3:4])
+    # Combine total points
+    colnames(df) <- colnames(tiburon_pts@coords)
+    df2 <- as_tibble(rbind(tiburon_pts@coords, df))
+    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep("Tiburon", nrow(df2)))))
+    colnames(df3)[3] <- "cluster"
+    write_delim(x = df3, file = "niche-assessment/Tiburon_total_pts.csv", delim = ",", col_names = TRUE)
 ## Thin points
-    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 15, save = FALSE)
-        write_delim(x = df4, file = "niche-assessment/south_paleo_thinned.csv", delim = ",", col_names = TRUE)
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 10, save = FALSE)
+        write_delim(x = df4, file = "niche-assessment/Tiburon_thinned.csv", delim = ",", col_names = TRUE)
+tiburon <- read_csv("niche-assessment/Tiburon_thinned.csv")
+
+## A. d. favillarum (by far the smallest range)
+fav_pts <- SpatialPoints(RAD_data[RAD_data$subspecies %in% c("favillarum") & RAD_data$cluster == 1, c("longitude", "latitude")])
+fav_poly <- rangeBuilder::getDynamicAlphaHull(x = fav_pts@coords, fraction = 1.0,
+                    clipToCoast = "terrestrial", buff = 1000)
+fav_poly <- vect(fav_poly[[1]])                
+masked <- terra::mask(x = all_pts, mask = fav_poly)
+    df <- as.data.frame(terra::geom(masked)[, 3:4])
+    # Combine total points
+    colnames(df) <- colnames(fav_pts@coords)
+    df2 <- as_tibble(rbind(fav_pts@coords, df))
+    df3 <- as_tibble(base::as.data.frame(cbind(df2, rep("favillarum", nrow(df2)))))
+    colnames(df3)[3] <- "cluster"
+    write_delim(x = df3, file = "niche-assessment/fav_total_pts.csv", delim = ",", col_names = TRUE)
+## Thin points
+    df4 <- thin_data(df3, "longitude", "latitude", thin_distance = 1, save = FALSE)
+        write_delim(x = df4, file = "niche-assessment/fav_thinned.csv", delim = ",", col_names = TRUE)
+fav <- read_csv("niche-assessment/fav_thinned.csv")
 ```
 
-# Explore univariate distributions of environmental variables
+# Environmental variables
 ```{r}
-# Merge into one big dataframe
-all_pts <- as_tibble(rbind(K1_total_pts, K2_total_pts, K3_total_pts, K4_total_pts, K5_total_pts))
-    env_values <- raster::extract(all_pts[, 1:2], x = env)
-    all_pts <- na.omit(as_tibble(cbind(all_pts, env_values)))
+env_dir <- "~/Dropbox/Distichus_Project/ddRADseq_Phylogeography/AnoDist_aln/gea/env-data/masked"
 
-bio3 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_03, fill = K)) +
-    geom_violin() +
-    scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster I",
-        x = "Genetic Clusters (K = 5)",
-        y = "Isothermality (BIO3)") +
-    theme_classic()
-bio3
+## Variables to include only forward-selected environmental variables
+ordi_vars <- c("clt_min", "elevation_30sec", "bio4", "bio18", "bio9", "cmi_range", "bio3")
 
-bio4 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_04, fill = K)) +
-    geom_violin() +
-     scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster I",
-        x = "Genetic Clusters (K = 5)",
-        y = "Temperature Seasonality (BIO4)") +
-    theme_classic()
-bio4
+for (var in ordi_vars){
+    env <- rast(list.files(path = env_dir, pattern = var, full.names = TRUE))
 
-bio5 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_05, fill = K)) +
-    geom_violin() +
-     scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster I",
-        x = "Genetic Clusters (K = 5)", 
-        y = "Mean Daily Max. Temp of Warmest Month (BIO5)") +
-    theme_classic()
-bio5
+    ## Because climate and elevational variables were derived from distinct sources,
+    ## their extents don't match
+    if (var == "elevation_30sec"){
+        env <- terra::resample(x = env, y = clt_min)
+    }
 
-bio15 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_15, fill = K)) +
-    geom_violin() +
-     scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster II",
-        x = "Genetic Clusters (K = 5)",
-        y = "Precipitation Seasonality (BIO15)") +
-    theme_classic()
-bio15
+    assign(var, env)
+}
 
-bio16 <- ggplot(all_pts, aes(x = K, y = CHELSA_bio10_16, fill = K)) +
-    geom_violin() +
-     scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster II",
-        x = "Genetic Clusters (K = 5)",
-        y = "Mean Monthly Precipitation Amount of Wettest Quarter (BIO16)") +
-    theme_classic()
-bio16
+env <- c(clt_min, elevation_30sec, bio4, bio18, bio9, cmi_range, bio3)
 
-marEVI <- ggplot(all_pts, aes(x = K, y = march_EVI_mean, fill = K)) +
-    geom_violin() +
-     scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster II",
-        x = "Genetic Clusters (K = 5)",
-        y = "March EVI") +
-    theme_classic()
-marEVI
+crs(env) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"
 
-mayNDVI <- ggplot(all_pts, aes(x = K, y = may_NDVI_mean, fill = K)) +
-    geom_violin() +
-     scale_fill_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(title = "Climate Varies by Genetic Cluster II",
-        x = "Genetic Clusters (K = 5)",
-        y = "May NDVI") +
-    theme_classic()
-mayNDVI
-```
+width <- 9
+for (i in 1:7){
+    var <- terra::focal(env[[i]], w = matrix(1, width, width), fun = fill.na, na.policy = "only")
+        assign(paste0("var_", i), var)
+}
+imp <- env_imputed <- c(var_1, var_2, var_3, var_4, var_5, var_6, var_7)
+names(imp) <- names(env)
 
-# Perform environmental PCA
-```{r}
-pca <- prcomp(all_pts[, 4:ncol(all_pts)], scale. = TRUE)
-    summary(pca)
-pca2 <- as_tibble(data.frame(cbind(all_pts[,1:3], pca$x)))
+env <- imp
 
-pc_plot <- ggplot(pca2, aes(PC1, PC2, color = K)) + geom_point(size = 3)
-pc_plot <- pc_plot + coord_equal() + stat_ellipse() +
-    scale_color_manual(values = c("#634102", "#1a1ac2", "#cf5d34", "#fddc1f","gray80")) +
-    labs(x = "PC1 (38.58%)", y = "PC2 (32.09%)") +
-    theme_light(base_size = 16)
-pc_plot
-ggsave("env_pc1-pc2.pdf")
+env <- ENMTools::check.env(env)
 
-# Do contour plot of principal compoents NOT FINISHED
-#test <- ggplot(pca2, aes(PC1, PC2)) + stat_density_2d(aes(fill = clust), geom = "polygon")
+# write masked rasters to files
+lapply(names(env), function(x) {
+    writeRaster(env[[x]], paste0("data/selected-vars/imputed/", x, ".asc"), overwrite = TRUE)
+})
 
-# For safe measure, do PCA on rasters themselves
-pca_env <- RStoolbox::rasterPCA(env, spca = TRUE)
-    # plot pca_env$map
-summary(pca_env$model)
-# Importance of components:
-#                           Comp.1    Comp.2    Comp.3     Comp.4     Comp.5
-# Standard deviation     2.6374138 2.4217969 1.7510149 1.41265862 1.12982256
-# Proportion of Variance 0.3477976 0.2932550 0.1533027 0.09978022 0.06382495
-# Cumulative Proportion  0.3477976 0.6410526 0.7943552 0.89413547 0.95796042
-#                            Comp.6      Comp.7      Comp.8      Comp.9
-# Standard deviation     0.66859372 0.395721763 0.311149019 0.224127442
-# Proportion of Variance 0.02235088 0.007829786 0.004840686 0.002511656
-# Cumulative Proportion  0.98031129 0.988141080 0.992981766 0.995493421
-#                            Comp.10     Comp.11      Comp.12     Comp.13
-# Standard deviation     0.183755922 0.142101776 0.1171059698 0.106767319
-# Proportion of Variance 0.001688312 0.001009646 0.0006856904 0.000569963
-# Cumulative Proportion  0.997181733 0.998191379 0.9988770693 0.999447032
-#                             Comp.14      Comp.15      Comp.16      Comp.17
-# Standard deviation     0.0802225538 0.0578716000 2.748685e-02 1.303474e-02
-# Proportion of Variance 0.0003217829 0.0001674561 3.777633e-05 8.495227e-06
-# Cumulative Proportion  0.9997688153 0.9999362714 9.999740e-01 9.999825e-01
-#                             Comp.18      Comp.19      Comp.20
-# Standard deviation     1.158269e-02 1.088623e-02 9.822052e-03
-# Proportion of Variance 6.707933e-06 5.925504e-06 4.823635e-06
-# Cumulative Proportion  9.999893e-01 9.999952e-01 1.000000e+00
-
-knitr::kable(round(pca_env$model$loadings[, 1:5], 5))
-# |                   |   Comp.1|   Comp.2|   Comp.3|   Comp.4|   Comp.5|
-# |:------------------|--------:|--------:|--------:|--------:|--------:|
-# |SRTM_elevation_1km |  0.26928|  0.25862|  0.14115|  0.06832|  0.10597|
-# |CHELSA_bio10_01    | -0.27004| -0.27532| -0.10534| -0.02085| -0.09716|
-# |CHELSA_bio10_02    |  0.25876|  0.04529| -0.38415| -0.13501| -0.13435|
-# |CHELSA_bio10_03    |  0.22154|  0.08965| -0.33440| -0.14061| -0.15920|
-# |CHELSA_bio10_04    |  0.12608| -0.09123| -0.40428| -0.24556|  0.10070|
-# |CHELSA_bio10_05    | -0.17017| -0.28678| -0.29890| -0.08504| -0.13933|
-# |CHELSA_bio10_06    | -0.31372| -0.22495|  0.06633|  0.03513| -0.03031|
-# |CHELSA_bio10_07    |  0.25351|  0.01085| -0.40117| -0.13643| -0.10315|
-# |CHELSA_bio10_10    | -0.25659| -0.28387| -0.13566| -0.03117| -0.08583|
-# |CHELSA_bio10_11    | -0.28029| -0.26791| -0.07416| -0.00077| -0.09819|
-# |CHELSA_bio10_12    | -0.17690|  0.26802| -0.24194|  0.27154| -0.09103|
-# |CHELSA_bio10_13    | -0.13576|  0.25390| -0.15566|  0.37941| -0.28263|
-# |CHELSA_bio10_14    | -0.24477|  0.22153| -0.21881|  0.07405|  0.30397|
-# |CHELSA_bio10_15    |  0.19880| -0.11382|  0.19591|  0.14782| -0.59810|
-# |CHELSA_bio10_16    | -0.14262|  0.24892| -0.15252|  0.39519| -0.27436|
-# |CHELSA_bio10_17    | -0.24614|  0.22208| -0.21516|  0.07368|  0.31101|
-# |march_EVI_mean     | -0.24946|  0.22459|  0.06598| -0.31146| -0.05524|
-# |march_NDVI_mean    | -0.16967|  0.27535|  0.11522| -0.34843| -0.04275|
-# |may_EVI_mean       | -0.21705|  0.21113|  0.03412| -0.33594| -0.29322|
-# |may_NDVI_mean      | -0.13553|  0.27044|  0.10093| -0.36147| -0.27689|
-```
-
-# Use fauxcurrence package to obtain background points that have been adjusted for spatial sampling bias for Background/niche similarity tests.
-```{r}
-# Prepare data for fauxcurrence
-colnames(all_pts) <- c("x", "y", "species")
-all_pts$species <- as.character(all_pts$species)
-all_pts$species <- replace(all_pts$species, all_pts$species == 1, "dominicensis")
-all_pts$species <- replace(all_pts$species, all_pts$species == 2, "South")
-all_pts$species <- replace(all_pts$species, all_pts$species == 3, "ignigularis")
-all_pts$species <- replace(all_pts$species, all_pts$species == 4, "ravitergum")
-all_pts$species <- replace(all_pts$species, all_pts$species == 5, "properus")
-
-# K_12 <- merge(K1_bias, K2_bias)
-# K_13 <- merge(K1_bias, K3_bias)
-# K_24 <- merge(K2_bias, K4_bias)
-# K_34 <- merge(K3_bias, K4_bias)
-# K_35 <- merge(K3_bias, K5_bias)
-
-# Use fauxcurrence to obtain bias-corrected background points
-# set.seed(69)
-#     # Pairwise between species pairs I will be performing niche similarity tests on
-#     coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "South", ])
-#     faux_inter_12 <-  fauxcurrence(coords = coords, rast = K_12, inter.spp = TRUE, sep.inter.spp = TRUE)
-#         save(faux_inter_12, file = "niche-assessment/faux_inter_12.RData")
-        load("niche-assessment/faux_inter_12.RData")
-
-#     coords <- as.data.frame(all_pts[all_pts$species == "dominicensis" | all_pts$species == "ignigularis", ])
-#     faux_inter_13 <-  fauxcurrence(coords = coords, rast = K_13, inter.spp = TRUE, sep.inter.spp = TRUE)
-#         save(faux_inter_13, file = "niche-assessment/faux_inter_13.RData")
-        load("niche-assessment/faux_inter_13.RData")
-
-#     coords <- as.data.frame(all_pts[all_pts$species == "South" | all_pts$species == "ravitergum", ])
-#     faux_inter_24 <- fauxcurrence(coords = coords, rast = K_24, inter.spp = TRUE, sep.inter.spp = TRUE)
-#         save(faux_inter_24, file = "niche-assessment/faux_inter_24.RData")
-        load("niche-assessment/faux_inter_24.RData")
-    
-#     coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "ravitergum", ])
-#     faux_inter_34 <- fauxcurrence(coords = coords, rast = K_34, inter.spp = TRUE, sep.inter.spp = TRUE)
-#         save(faux_inter_34, file = "niche-assessment/faux_inter_34.RData")
-        load("niche-assessment/faux_inter_34.RData")
-        
-#     coords <- as.data.frame(all_pts[all_pts$species == "ignigularis" | all_pts$species == "properus", ])     
-#     faux_inter_35 <- fauxcurrence(coords = coords, rast = K_35, inter.spp = TRUE, sep.inter.spp = TRUE)
-#         save(faux_inter_35, file = "niche-assessment/faux_inter_35.RData")
-        load("niche-assessment/faux_inter_35.RData")
+env <- rast(list.files(path = "data/selected-vars/imputed", pattern = ".asc$", full.names = TRUE))
 ```
 
 # Run ENMTools niche assessment tests
 # (1) Create ENMTools species objects:
 ```{r}
-K1 <- enmtools.species(species.name = "K1", presence.points = read.csv("niche-assessment/K_1_thinned.csv"))
-    K1$range <- background.raster.buffer(K1$presence.points, radius = 50000, mask = env2[[1]])
-    K1$background.points <- background.buffer(points = K1$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
-    check.species(K1)
-
-K2 <- enmtools.species(species.name = "K2", presence.points = read.csv("niche-assessment/K_2_thinned.csv"))
-    K2$range <- background.raster.buffer(K2$presence.points, radius = 50000, mask = env2[[1]])
-    K2$background.points <- background.buffer(points = K2$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
+## eastern dominicensis
+K2 <- enmtools.species(species.name = "K2", presence.points = vect(read.csv("niche-assessment/K2_alpha_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(K2$presence.points) <- crs(env)
+    # K2$range <- background.raster.buffer(K2$presence.points, radius = 30000, mask = env[[1]])
+    K2$range <- terra::mask(x = env[[1]],  mask = vect("niche-assessment/ranges/K2_alpha_poly.shp"))
+    K2$background.points <- background.points.buffer(points = K2$presence.points, radius = 15000, n = 3000, mask = K2$range)
     check.species(K2)
 
-K3 <- enmtools.species(species.name = "K3", presence.points = read.csv("niche-assessment/K_3_thinned.csv"))
-    K3$range <- background.raster.buffer(K3$presence.points, radius = 50000, mask = env2[[1]])
-    K3$background.points <-background.buffer(points = K3$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 3000, mask = env2[[1]])
+## ravitergum
+K3 <- enmtools.species(species.name = "K3", presence.points = vect(read.csv("niche-assessment/K3_alpha_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(K3$presence.points) <- crs(env)
+    K3$range <- terra::mask(x = env[[1]],  mask = vect("niche-assessment/ranges/K3_alpha_poly.shp"))
+    K3$background.points <- background.points.buffer(points = K3$presence.points, radius = 15000, n = 3000, mask = K3$range)
     check.species(K3)
 
-K4 <- enmtools.species(species.name = "K4", presence.points = read.csv("niche-assessment/K_4_thinned.csv"))
-    K4$range <- background.raster.buffer(K4$presence.points, radius = 50000, mask = env2[[1]])
-    K4$background.points <- background.buffer(points = K4$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 1000, mask = env2[[1]])
+## properus
+K4 <- enmtools.species(species.name = "K4", presence.points = vect(read.csv("niche-assessment/K4_alpha_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(K4$presence.points) <- crs(env)
+    K4$range <- terra::mask(x = env[[1]],  mask = vect("niche-assessment/ranges/K4_alpha_poly.shp"))
+    K4$background.points <- background.points.buffer(points = K4$presence.points, radius = 15000, n = 3000, mask = K4$range)
     check.species(K4)
 
-K5 <- enmtools.species(species.name = "K5", presence.points = read.csv("niche-assessment/K_5_thinned.csv"))
-    K5$range <- background.raster.buffer(K5$presence.points, radius = 50000, mask = env2[[1]])
-    K5$background.points <- background.buffer(points = K5$presence.points, buffer.width = 20000, buffer.type = "convhull", return.type = "points", n = 1000, mask = env2[[1]])
+## ignigularis
+K5 <- enmtools.species(species.name = "K5", presence.points = vect(read.csv("niche-assessment/K5_alpha_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(K5$presence.points) <- crs(env)
+    K5$range <- terra::mask(x = env[[1]], mask = vect("niche-assessment/ranges/K5_alpha_poly.shp"))
+    K5$background.points <- background.points.buffer(points = K5$presence.points, radius = 15000, n = 3000, mask = K5$range)
     check.species(K5)
+
+west_dom <- enmtools.species(species.name = "western_dominicensis", presence.points = vect(read.csv("niche-assessment/dom14_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(west_dom$presence.points) <- crs(env)
+    west_dom$range <- terra::mask(x = env[[1]],  mask = vect("niche-assessment/ranges/dom14_poly.shp"))
+    west_dom$background.points <- background.points.buffer(points = west_dom$presence.points, radius = 22000, n = 3000, mask = west_dom$range)
+    check.species(west_dom)
+
+tiburon <- enmtools.species(species.name = "tiburon", presence.points = vect(read.csv("niche-assessment/tiburon_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(tiburon$presence.points) <- crs(env)
+    # tiburon$range <- terra::mask(x = env[[1]],  mask = vect("niche-assessment/ranges/tiburon_poly.shp"))
+    tiburon$range <- background.raster.buffer(tiburon$presence.points, radius = 33000, mask = env[[1]]) 
+    tiburon$background.points <- background.points.buffer(points = tiburon$presence.points, radius = 32000, n = 3000, mask = tiburon$range)
+    check.species(tiburon)
+
+fav <- enmtools.species(species.name = "favillarum", presence.points = vect(read.csv("niche-assessment/fav_poly-thinned-points.csv"), geom = c("longitude", "latitude")))
+    crs(fav$presence.points) <- crs(env)
+    fav$range <- terra::mask(x = env[[1]],  mask = vect("niche-assessment/ranges/fav_poly.shp"))
+    fav$background.points <- background.points.buffer(points = fav$presence.points, radius = 2000, n = 3000, mask = fav$range)
+    check.species(fav)
+
+plot(hispaniola)
+plot(K2$range, add =T)
+plot(K3$range, add = T)
+plot(K4$range, add = T)
+plot(K5$range, add = T)
+plot(fav$range, add = T)
+plot(tiburon$range, add = T)
+plot(west_dom$range, add = T)
+
+plot(K2$background.points, col = "brown", add =T)
+plot(K3$background.points, col = "gold",add = T)
+plot(K4$background.points, col = "gray10", add = T)
+plot(K5$background.points, col = "orangered", add = T)
+plot(fav$background.points, col = "darkorchid2", add = T)
+plot(tiburon$background.points, col = "dodgerblue2", add = T)
+plot(west_dom$background.points, col = "tan", add = T)
 ```
 
-# Perform rangebreak blob tests
+# Perform rangebreak blob tests (Update below)
 ```{r}
 # Eastern A. d. dominicensis vs western A. d. dominicensis and South paleo-island
-K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK2/")
     png("niche-assessment/K_1_2_rbb.png")
@@ -547,7 +469,7 @@ K1K2.rbb <- rangebreak.blob(species.1 = K1, species.2 = K2, env = env2, type = "
     save(K1K2.rbb, file = "niche-assessment/K1K2.rbb.RData")
 
 ## Eastern A. d. dominicensis vs A. d. ignigularis
-K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "mx", nreps = 1000,
+K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vK3/")
     png("niche-assessment/K_1_3_rbb.png")
@@ -557,7 +479,7 @@ K1K3.rbb <- rangebreak.blob(species.1 = K1, species.2 = K3, env = env2, type = "
     save(K1K3.rbb, file = "niche-assessment/K1K3.rbb.RData")
 
 # ## A. d. ignigularis vs A. d. properus
-K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "mx", nreps = 1000,
+K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK5/")
     png("niche-assessment/K_3_5_rbb.png")
@@ -567,7 +489,7 @@ K3K5.rbb <- rangebreak.blob(species.1 = K3, species.2 = K5, env = env2, type = "
     save(K3K5.rbb, file = "niche-assessment/K3K5.rbb.RData")
 
 # ## A. d. ignigularis vs A. d. ravitergum
-K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "mx", nreps = 1000,
+K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K3vK4/")
     png("niche-assessment/K_3_4_rbb.png")
@@ -577,7 +499,7 @@ K3K4.rbb <- rangebreak.blob(species.1 = K3, species.2 = K4, env = env2, type = "
     save(K3K4.rbb, file = "niche-assessment/K3K4.rbb.RData")
 
 ## A. d. ravitergum vs western A. d. dominicensis and South paleo-island
-K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "mx", nreps = 1000,
+K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vK2/")
     png("niche-assessment/K_4_2_rbb.png")
@@ -587,7 +509,7 @@ K4K2.rbb <- rangebreak.blob(species.1 = K4, species.2 = K2, env = env2, type = "
     save(K4K2.rbb, file = "niche-assessment/K4K2.rbb.RData")
 
 ## Eastern A. d. dominicensis vs western A. d. dominicensis
-K1d14.rbb <- rangebreak.blob(species.1 = K1, species.2 = d14, env = env2, type = "mx", nreps = 1000,
+K1d14.rbb <- rangebreak.blob(species.1 = K1, species.2 = d14, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K1vsD14/")
     png("niche-assessment/K_4_d14_rbb.png")
@@ -597,7 +519,7 @@ K1d14.rbb <- rangebreak.blob(species.1 = K1, species.2 = d14, env = env2, type =
     save(K1d14.rbb, file = "niche-assessment/K1d14.rbb.RData")
 
 ## A. d. ravitergum vs South paleo-island 
-K4spi.rbb <- rangebreak.blob(species.1 = K4, species.2 = spi, env = env2, type = "mx", nreps = 1000,
+K4spi.rbb <- rangebreak.blob(species.1 = K4, species.2 = spi, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsSPI/")
     png("niche-assessment/K_4_spi_rbb.png")
@@ -607,7 +529,7 @@ K4spi.rbb <- rangebreak.blob(species.1 = K4, species.2 = spi, env = env2, type =
     save(K4spi.rbb, file = "niche-assessment/K4spi.rbb.RData")
 
 ## A. d. ravitergum vs western A. d. dominicensis
-K4d14.rbb <- rangebreak.blob(species.1 = K4, species.2 = d14, env = env2, type = "mx", nreps = 1000,
+K4d14.rbb <- rangebreak.blob(species.1 = K4, species.2 = d14, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_K4vsD14/")
     png("niche-assessment/K_4_d14_rbb.png")
@@ -617,7 +539,7 @@ K4d14.rbb <- rangebreak.blob(species.1 = K4, species.2 = d14, env = env2, type =
     save(K4d14.rbb, file = "niche-assessment/K4d14.rbb.RData")
 
 ## South paleo-island vs western A. d. dominicensis
-spid14.rbb <- rangebreak.blob(species.1 = spi, species.2 = d14, env = env2, type = "mx", nreps = 1000,
+spid14.rbb <- rangebreak.blob(species.1 = spi, species.2 = d14, env = env, type = "mx", nreps = 1000,
                             bg.source = "points", low.memory = TRUE, verbose = TRUE,
                             rep.dir = "/scratch/tcm0036/distichus-ddRAD/analyses/niche/rangebreak_SPIvsD14/")
     png("niche-assessment/K_4_spi_rbb.png")
@@ -633,11 +555,11 @@ spid14.rbb <- rangebreak.blob(species.1 = spi, species.2 = d14, env = env2, type
     ## asymmetric test comparing observed and simulated points and the symmetric test
     ## comparing only simulated points
 ```{r}
-K_12_bg <- background.test(species.1 = K1, species.2 = K2, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
-K_13_bg <- background.test(species.1 = K1, species.2 = K3, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
-K_24_bg <- background.test(species.1 = K2, species.2 = K4, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
-K_34_bg <- background.test(species.1 = K3, species.2 = K4, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
-K_35_bg <- background.test(species.1 = K3, species.2 = K5, env = env2, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_12_bg <- background.test(species.1 = K1, species.2 = K2, env = env, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_13_bg <- background.test(species.1 = K1, species.2 = K3, env = env, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_24_bg <- background.test(species.1 = K2, species.2 = K4, env = env, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_34_bg <- background.test(species.1 = K3, species.2 = K4, env = env, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
+K_35_bg <- background.test(species.1 = K3, species.2 = K5, env = env, type = "mx", test.type = "asymmetric", nreps = 100, bg.source = "points")
 ```
 
 
